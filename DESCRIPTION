@@ -1,0 +1,13 @@
+Package: GLKN_AnnualReports
+Title: Water Quality Monitoring Data Report
+Version: 0.0.1
+Authors@R: c(
+    person(given = "Kinzie", 
+           family = "Bailey", 
+           email = "kinzie_bailey@partner.nps.gov",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-8210-8370"))
+    )
+Description: This repo contains all the documentation to compile and render the NGPN plant community monitoring annual reports. 
+License: CC0 + file LICENSE
+Encoding: UTF-8
