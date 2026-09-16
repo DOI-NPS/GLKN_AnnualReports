@@ -79,14 +79,18 @@ park_type <- c("ISRO" = "lake",
                "VOYA" = "lake")
 
 # Parameters based on park type:
-river_param <- c("Phosphorus", "Nitrate + Nitrite", 
-                 "Chlorophyll a, free of pheophytin",
-                 "Total suspended solids", "Calcium",
-                 "Chloride") 
+river_param <- c("Phosphorus (ug/L)", "Total suspended solids (mg/L)",
+                 "Calcium (mg/L)", "Water Temperature (deg C)", 
+                 "Chlorophyll a (mg/m3)", "Nitrate (ug/L)", "Chloride (mg/L)")
 
-lake_param <- c("Temperature, water", "Phosphorus", "Water level", "Calcium",
-                "Dissolved oxygen (DO)", "Chlorophyll a, free of pheophytin",
-                "Depth, Secchi disk depth", "Organic carbon")
+lake_param <- c("Water Temperature (deg C)", "Phosphorus (ug/L)", 
+                "Water level (m)", "Calcium (mg/L)", 
+                "Dissolved Oxygen (mg/L)", "Chlorophyll a (mg/m3)",
+                "Secchi Disk Depth (m)", "Dissolved Organic Carbon (mg/L)")
+
+# Date labels 
+date_labels <- c(paste0("2006 - ", as.numeric(format(Sys.Date(), "%Y")) - 1),
+                 format(Sys.Date(), "%Y"))
 
 ## Data prep functions ----
 ### map data 
@@ -109,28 +113,29 @@ prep_boxplot <- function(df, park_code, type){
   # filtering based on type and releveling 
   parameters <- if(identical(type, "river")){
     df |> 
-      dplyr::filter(CharacteristicName %in% river_param,
-                    !is.na(value)) |> 
-      dplyr::mutate(CharacteristicName = forcats::fct_relevel(CharacteristicName,
-                                                              c("Phosphorus",  
-                                                                "Nitrate + Nitrite",
-                                                                "Calcium",
-                                                                "Chlorophyll a, free of pheophytin",
-                                                                "Total suspended solids", 
-                                                                "Chloride")))
+      dplyr::filter(AxisName %in% river_param,
+                    !is.na(value))  |> 
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    c("Phosphorus (ug/L)", 
+                                                      "Total suspended solids (mg/L)",
+                                                      "Calcium (mg/L)", 
+                                                      "Water Temperature (deg C)", 
+                                                      "Chlorophyll a (mg/m3)", 
+                                                      "Nitrate (ug/L)", 
+                                                      "Chloride (mg/L)")))
   } else{
     df |> 
-      dplyr::filter(CharacteristicName %in% lake_param,
+      dplyr::filter(AxisName %in% lake_param,
                     !is.na(value)) |> 
-      dplyr::mutate(CharacteristicName = forcats::fct_relevel(CharacteristicName,
-                                                              c("Temperature, water", 
-                                                                "Phosphorus", 
-                                                                "Water level", 
-                                                                "Calcium",
-                                                                "Dissolved oxygen (DO)", 
-                                                                "Chlorophyll a, free of pheophytin",
-                                                                "Depth, Secchi disk depth", 
-                                                                "Organic carbon")))
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    c("Water Temperature (deg C)", 
+                                                      "Phosphorus (ug/L)", 
+                                                      "Water level (m)", 
+                                                      "Calcium (mg/L)",
+                                                      "Dissolved Oxygen (mg/L)", 
+                                                      "Chlorophyll a (mg/m3)",
+                                                      "Secchi Disk Depth (m)", 
+                                                      "Dissolved Organic Carbon (mg/L)")))
   }
 }
 
@@ -142,7 +147,7 @@ prep_table <- function(df, park_code, type){
   # filtering based on type
   parameters <- if(identical(type, "river")){
     df |> 
-      dplyr::filter(CharacteristicName %in% river_param)|> 
+      dplyr::filter(AxisName %in% river_param)|> 
       filter(!is.na(value)) |> 
       summarise(med = median(value, na.rm = TRUE),
                 stan_dev = sd(value, na.rm = TRUE),
@@ -157,16 +162,17 @@ prep_table <- function(df, park_code, type){
                                   max_val)) |> 
       dplyr::mutate(across(where(is.numeric), \(x) round(x, 2))) |> 
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Phosphorus",  
-                                                      "Nitrate + Nitrite",
-                                                      "Calcium",
-                                                      "Chlorophyll a, free of pheophytin",
-                                                      "Total suspended solids", 
-                                                      "Chloride"))) |> 
+                                                    c("Water Temperature (deg C)",
+                                                      "Phosphorus (ug/L)", 
+                                                      "Chlorophyll a (mg/m3)",
+                                                      "Total suspended solids (mg/L)",
+                                                      "Nitrate (ug/L)",
+                                                      "Calcium (mg/L)", 
+                                                       "Chloride (mg/L)"))) |> 
       arrange(AxisName)
   } else{
     df |> 
-      dplyr::filter(CharacteristicName %in% lake_param)|> 
+      dplyr::filter(AxisName %in% lake_param)|> 
       filter(!is.na(value)) |> 
       summarise(med = median(value, na.rm = TRUE),
                 stan_dev = sd(value, na.rm = TRUE),
@@ -204,8 +210,8 @@ prep_profiles <- function(df, park_code, type){
     # current years data
     current_data <- df |> 
       # filtering depth data and current year
-      dplyr::filter(CharacteristicName %in% c("Dissolved oxygen (DO)",
-                                              "Temperature, water"),
+      dplyr::filter(AxisName %in% c("Dissolved Oxygen (mg/L)",
+                                    "Water Temperature (deg C)"),
                     year == 2024) |> 
       # year == format(Sys.Date(), "%Y"))|> 
       filter(!is.na(value)) |> 
@@ -225,8 +231,8 @@ prep_profiles <- function(df, park_code, type){
     all_data <- df |> 
       # filtering valid months 
       filter(month %in% valid_months,
-             CharacteristicName %in% c("Dissolved oxygen (DO)",
-                                       "Temperature, water")) |> 
+             AxisName %in% c("Dissolved Oxygen (mg/L)",
+                             "Water Temperature (deg C)")) |> 
       # round depths
       mutate(depth = round(depth, 0)) |> 
       filter(!is.na(value)) |> 
@@ -281,8 +287,10 @@ plot_boxplot <- function(df){
     labs(fill = "Period",
          x = "Period",
          y = "Value") +
-    scale_fill_manual(values = c("#457B9D",
+    scale_fill_manual(labels = date_labels,
+                      values = c("#457B9D",
                                  "#6B8E23")) +
+    scale_x_discrete(labels = date_labels) +
     theme_bw() + 
     theme(text = element_text(size = 16))
 }
@@ -291,12 +299,16 @@ plot_boxplot <- function(df){
 create_table <- function(df){
   df |> 
     gt() |> 
-    tab_spanner(label = html("<strong>Historic</strong>"),
+    tab_spanner(label = html(paste0("<strong>2006 - ",
+                                    as.numeric(format(Sys.Date(), "%Y")) - 1,
+                                    "</strong>")),
                 columns = c(min_val_Historic,
                             med_Historic,
                             max_val_Historic,
                             stan_dev_Historic)) |> 
-    tab_spanner(label = html("<strong>Current</strong>"),
+    tab_spanner(label = html(paste0("<strong>",
+                                    format(Sys.Date(), "%Y"),
+                                    "</strong>")),
                 columns = c(min_val_Current,
                             med_Current,
                             max_val_Current,

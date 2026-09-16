@@ -41,6 +41,9 @@ if(type == "lake"){
 } else{
   selected_params <- river_param
 }
+
+# year designation
+current_year <- format(Sys.Date(), "%Y")
 ```
 
 ## Overview {.tabset}
@@ -82,7 +85,7 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("Boxplot showing current year data compared to all data collected at the site. \n\n")
+  cat("Boxplot showing ", current_year," data compared to all data collected at the site. \n\n")
   
   cat("<br><br>")
   
@@ -93,7 +96,7 @@ for(site in sites){
   
   table <- create_table(table_data)
   
-  cat("Table showing summary data for current year. \n\n")
+  cat("Table showing summary data for ", current_year,". \n\n")
   
   print(table)
   
@@ -114,7 +117,7 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("Depth profiles plots for dissolved oxygen and water temperature. \n\n")
+  cat("Depth profiles plots for dissolved oxygen and water temperature for ", current_year,". \n\n")
   }
   cat("\n\n")
 }
