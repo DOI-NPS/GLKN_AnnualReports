@@ -260,7 +260,7 @@ prep_profiles <- function(df, park_code, type){
 ### map 
 plot_map <- function(df){
   leaflet(df) |> 
-    addTiles() |> 
+    addProviderTiles("Esri.WorldStreetMap") |> 
     addCircleMarkers(lng = ~lon,
                      lat = ~lat,
                      radius = 5,
