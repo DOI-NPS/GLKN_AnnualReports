@@ -4,6 +4,5 @@
 .Ruserdata
 .positai
 
-*.html
-
-/data
+data/
+reports/
