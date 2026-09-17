@@ -48,18 +48,31 @@ current_year <- format(Sys.Date(), "%Y")
 
 ## Overview {.tabset}
 
-In assistance with `r params$park` staff, the Great Lakes Inventory and Monitoring Network (GLKN) monitored water quality on the `r paste(sites, collapse = ", ")` at `r params$park` for `r format(Sys.Date(), "%Y")`. This report contains figures and tables where `r format(Sys.Date(), "%Y")` data is compared to data from prior years for select parameters. The following water quality parameters are included in this report: 
+In assistance with `r params$park` staff, the Great Lakes Inventory and Monitoring Network (GLKN) monitored water quality on `r if (length(sites) > 1) paste(paste(sites[-length(sites)], collapse = ", "), ", and", sites[length(sites)]) else sites` at `r params$park` for `r format(Sys.Date(), "%Y")`. This report contains figures and tables where `r format(Sys.Date(), "%Y")` data are compared to data from prior years for select parameters. The following water quality parameters are included in this report: 
 
 `r paste("-", selected_params, collapse = "\n")`
 
-A complete list of parameters monitored at `r params$park` is shown below, and current status and trends for all those parameters are available in GLKN's water quality visualizer, found here: 
+A complete list of parameters monitored at `r params$park` are shown in the Methods tab, and current status and trends for all those parameters are available in GLKN's water quality visualizer, found here: 
 [GLKN Water Quality Visualizer](kinziebailey.shinyapps.io/GLKNViz-Dev/)
 
 <h1>Map of `r params$park`</h1>
-```{r map}
+```{r map, results='asis'}
 map_data <- prep_map(df)
 
-plot_map(map_data)
+plot_map(df = map_data,
+         park_code = params$park,
+         type = park_type)
+
+if(type == "river"){
+  cat("A map of water quality sampling locations (blue) for", 
+      params$park,
+      ". Locations marked by green are sites where stream flow is measured by the USGS. \n\n")
+} else{
+  cat("A map of water quality sampling locations (blue) for", 
+      params$park,
+      ".\n\n")
+}
+  cat("<br><br>")
 ```
 
 ### Site Summaries {.tabset}
@@ -69,6 +82,11 @@ for(site in sites){
   
   # Create tab for site
   cat("#### ", site, "\n\n")
+  
+  print(htmltools::includeHTML(file.path("park_summaries",
+                                   params$park,
+                                   paste0(site,
+                                          "_summary.html"))))
   
   # subsetting site data 
   site_data <- df |> 
@@ -85,7 +103,14 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("Boxplot showing ", current_year," data compared to all data collected at the site. \n\n")
+  cat("Boxplots showing ", current_year," data (green) compared to all data (blue) collected at", site, 
+      " for ", 
+      if (length(selected_params) > 1)
+        paste(paste(selected_params[-length(selected_params)], collapse = ", "),
+              ", and", selected_params[length(selected_params)])
+      else selected_params,
+      ". The boxplots show the median (center line) and 25th and 75th percentiles (box edges), with whiskers (1.5xIQR) and outliers (points).",
+      "\n\n")
   
   cat("<br><br>")
   
@@ -96,7 +121,16 @@ for(site in sites){
   
   table <- create_table(table_data)
   
-  cat("Table showing summary data for ", current_year,". \n\n")
+  cat("A table showing summary statistics ( minimum, median, maximum, and standard deviation )",
+      "for historic data ( 2006 - ", as.numeric(current_year) - 1,
+      ") and current year (",
+      current_year,
+      ") data for",
+      if (length(selected_params) > 1)
+        paste(paste(selected_params[-length(selected_params)], collapse = ", "),
+              ", and", selected_params[length(selected_params)])
+      else selected_params,
+      ". \n\n")
   
   print(table)
   
@@ -117,7 +151,12 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("Depth profiles plots for dissolved oxygen and water temperature for ", current_year,". \n\n")
+  cat("Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ",
+      current_year,". The shaded areas represent the minimum and maximum values recored at each depth at ",
+      site,
+      " from 2006 - ",
+      as.numeric(current_year) - 1,
+      ". \n\n")
   }
   cat("\n\n")
 }

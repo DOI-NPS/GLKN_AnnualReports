@@ -13,8 +13,11 @@ library(ggplot2) # plotting
 # library(kableExtra) # custom kable features
 library(leaflet) # for mapping
 library(gt) # for table
-library(tidyr) # for pivoting
+library(tidyr) # for pivoting, extract
 library(forcats) # releveling factors
+library(dataRetrieval) # discharge data 
+library(sf) # spatial
+library(lubridate)
 
 # Start of Source Code ----
 ## Loading data ----
@@ -24,7 +27,7 @@ wqp_data1 <- read_csv(paste0("./data/wqp_glkn_",
                              format(Sys.Date(), "%Y"),
                              ".csv"))
 # or 
-# wqp_data1 <- read_csv(paste0("./data/wqp_glkn_2026.csv"))
+# wqp_data1 <- read_csv("./data/wqp_glkn_2026.csv")
 
 # keeping all site data from active sites
 wqp_data2 <- wqp_data1 |> 
@@ -32,6 +35,21 @@ wqp_data2 <- wqp_data1 |>
          .by = MonitoringLocationName)
   # filter(any(year == format(Sys.Date(), "%Y")),
          # .by = MonitoringLocationIdentifier)
+
+## discharge data from USGS
+discharge_sites <- c("USGS-05331833",
+                     "USGS-05333500",
+                     "USGS-05340500")
+
+discharge1 <- read_waterdata_daily(monitoring_location_id = discharge_sites,
+                                   parameter_code = "00060",
+                                   properties = c("monitoring_location_id",
+                                                  "time",
+                                                  "value",
+                                                  "unit_of_measure"),
+                                   time = c("2007-01-01",
+                                            format(Sys.Date(), "%Y-%m-%d")),
+                                   statistic_id = "00003")
 
 ## Data wrangling ----
 
@@ -46,7 +64,8 @@ keep_sites <- c("Beaver Lake", "Feldtmann Lake", "Lake Ahmik", "Lake Desor",
                 "Ek Lake", "Little Trout Lake", "Locator Lake", "Mukooda Lake",
                 "Peary Lake", "Ryan Lake", "Shoepack Lake")
 
-wqp_data <- wqp_data2 |> 
+## Water Quality Data 
+wqp_data3 <- wqp_data2 |> 
   # filtering lakes 
   dplyr::filter(MonitoringLocationName %in% keep_sites) |> 
   # renaming columns for ease
@@ -58,6 +77,78 @@ wqp_data <- wqp_data2 |>
                 value_unit = ResultMeasure.MeasureUnitCode,
                 lat = LatitudeMeasure,
                 lon = LongitudeMeasure) |>
+  # cleaning up columns 
+  select(MonitoringLocationIdentifier,
+         MonitoringLocationName,
+         end_date,
+         year,
+         month,
+         depth,
+         depth_unit,
+         ResultDetectionConditionText,
+         DetectionQuantitationLimitTypeName,
+         CharacteristicName,
+         value,
+         value_unit,
+         Park,
+         MonitoringLocationTypeName,
+         lat,
+         lon,
+         LowerPoint,
+         UpperPoint,
+         LowerDescription,
+         UpperDescription,
+         Reference,
+         AxisName)
+
+## Discharge Data 
+discharge2 <- discharge1 |>
+  # extracting lat/lon
+  dplyr::mutate(lon = sf::st_coordinates(geometry)[,1],
+                lat = sf::st_coordinates(geometry)[,2])|> 
+      sf::st_drop_geometry() |> 
+  # updating column to match wqp_data
+  dplyr::mutate(CharacteristicName = "Discharge",
+                AxisName = "Discharge (ft^3/s)",
+                year = lubridate::year(time),
+                month = as.character(lubridate::month(time))) |>
+  dplyr::rename(end_date = time,
+                value_unit = unit_of_measure)
+  
+
+# matching streamflow sites to wqp sites 
+site_lookup <- data.frame(monitoring_location_id = c("USGS-05331833", 
+                                                     "USGS-05331833", 
+                                                     "USGS-05331833",
+                                                     "USGS-05333500", 
+                                                     "USGS-05333500", 
+                                                     "USGS-05333500",
+                                                     "USGS-05340500", 
+                                                     "USGS-05340500"),
+                          MonitoringLocationIdentifier = c("11NPSWRD_WQX-SACN_NAKA_84.6", 
+                                                           "11NPSWRD_WQX-SACN_NAKA_41.3", 
+                                                           "11NPSWRD_WQX-SACN_NAKA_4.8",
+                                                           "11NPSWRD_WQX-SACN_STCR_138.9", 
+                                                           "11NPSWRD_WQX-SACN_STCR_104.0", 
+                                                           "11NPSWRD_WQX-SACN_STCR_89.7",
+                                                           "11NPSWRD_WQX-SACN_STCR_63.8", 
+                                                           "11NPSWRD_WQX-SACN_STCR_43.7"))
+
+# merging dataframes to "fill" in the dataset 
+discharge <- discharge2 |> 
+  left_join(site_lookup,
+            by = "monitoring_location_id",
+            relationship = "many-to-many")
+
+## Merging Data
+wqp_data4 <- bind_rows(wqp_data3,
+                       discharge)
+
+wqp_data <- wqp_data4 |> 
+  fill(MonitoringLocationName,
+       Park,
+       MonitoringLocationTypeName,
+       .by = "MonitoringLocationIdentifier") |> 
   # adding month and period (for historic vs current)
   dplyr::mutate(month_name = lubridate::month(end_date,
                                               label = TRUE,
@@ -67,9 +158,11 @@ wqp_data <- wqp_data2 |>
                                    TRUE ~ NA),
                 period = fct_relevel(period,
                                      c("Historic",
-                                       "Current")))
-                # period = case_when(year == format(Sys.Date(), "%Y") ~ "Current",
-                #                    year < format(Sys.Date(), "%Y") ~ "Historic"))
+                                       "Current")),
+                site_type = case_when(CharacteristicName == "Discharge" ~ "Stream Guage",
+                                      TRUE ~ "Monitoring"))
+  # period = case_when(year == format(Sys.Date(), "%Y") ~ "Current",
+  #                    year < format(Sys.Date(), "%Y") ~ "Historic"))
 
 ## park types 
 park_type <- c("ISRO" = "lake",
@@ -79,14 +172,14 @@ park_type <- c("ISRO" = "lake",
                "VOYA" = "lake")
 
 # Parameters based on park type:
-river_param <- c("Phosphorus (ug/L)", "Total suspended solids (mg/L)",
+river_param <- c("Discharge (ft^3/s)", "Phosphorus (ug/L)", "Total suspended solids (mg/L)",
                  "Calcium (mg/L)", "Water Temperature (deg C)", 
                  "Chlorophyll a (mg/m3)", "Nitrate (ug/L)", "Chloride (mg/L)")
 
-lake_param <- c("Water Temperature (deg C)", "Phosphorus (ug/L)", 
-                "Water level (m)", "Calcium (mg/L)", 
-                "Dissolved Oxygen (mg/L)", "Chlorophyll a (mg/m3)",
-                "Secchi Disk Depth (m)", "Dissolved Organic Carbon (mg/L)")
+lake_param <- c("Water Temperature (deg C)", "Dissolved Oxygen (mg/L)",
+                "Phosphorus (ug/L)", "Chlorophyll a (mg/m3)",
+                "Dissolved Organic Carbon (mg/L)", "Secchi Disk Depth (m)",
+                "Calcium (mg/L)", "Water level (m)")
 
 # Date labels 
 date_labels <- c(paste0("2006 - ", as.numeric(format(Sys.Date(), "%Y")) - 1),
@@ -96,8 +189,12 @@ date_labels <- c(paste0("2006 - ", as.numeric(format(Sys.Date(), "%Y")) - 1),
 ### map data 
 prep_map <- function(df){
   df |> 
+    # assigning USGS names 
+    mutate(MonitoringLocationName = case_when(!is.na(monitoring_location_id) ~ monitoring_location_id,
+                                              TRUE ~ MonitoringLocationName)) |> 
     # selecting lat/lon
     select(MonitoringLocationName,
+           site_type,
            lat,
            lon) |>
     # getting distinct values 
@@ -116,12 +213,13 @@ prep_boxplot <- function(df, park_code, type){
       dplyr::filter(AxisName %in% river_param,
                     !is.na(value))  |> 
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Phosphorus (ug/L)", 
+                                                    c("Discharge (ft^3/s)",
                                                       "Total suspended solids (mg/L)",
+                                                      "Phosphorus (ug/L)", 
                                                       "Calcium (mg/L)", 
                                                       "Water Temperature (deg C)", 
-                                                      "Chlorophyll a (mg/m3)", 
                                                       "Nitrate (ug/L)", 
+                                                      "Chlorophyll a (mg/m3)", 
                                                       "Chloride (mg/L)")))
   } else{
     df |> 
@@ -130,12 +228,12 @@ prep_boxplot <- function(df, park_code, type){
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
                                                     c("Water Temperature (deg C)", 
                                                       "Phosphorus (ug/L)", 
-                                                      "Water level (m)", 
+                                                      "Dissolved Organic Carbon (mg/L)", 
                                                       "Calcium (mg/L)",
                                                       "Dissolved Oxygen (mg/L)", 
                                                       "Chlorophyll a (mg/m3)",
                                                       "Secchi Disk Depth (m)", 
-                                                      "Dissolved Organic Carbon (mg/L)")))
+                                                      "Water level (m)")))
   }
 }
 
@@ -160,15 +258,16 @@ prep_table <- function(df, park_code, type){
                                   stan_dev,
                                   min_val,
                                   max_val)) |> 
-      dplyr::mutate(across(where(is.numeric), \(x) round(x, 2))) |> 
+      dplyr::mutate(across(where(is.numeric), \(x) round(x, 1))) |> 
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Water Temperature (deg C)",
-                                                      "Phosphorus (ug/L)", 
+                                                    c("Discharge (ft^3/s)",
+                                                      "Water Temperature (deg C)",
+                                                      "Phosphorus (ug/L)",
                                                       "Chlorophyll a (mg/m3)",
                                                       "Total suspended solids (mg/L)",
-                                                      "Nitrate (ug/L)",
+                                                      "Nitrate (ug/L)", 
                                                       "Calcium (mg/L)", 
-                                                       "Chloride (mg/L)"))) |> 
+                                                      "Chloride (mg/L)"))) |> 
       arrange(AxisName)
   } else{
     df |> 
@@ -185,16 +284,16 @@ prep_table <- function(df, park_code, type){
                                   stan_dev,
                                   min_val,
                                   max_val)) |> 
-      dplyr::mutate(across(where(is.numeric), \(x) round(x, 2))) |> 
+      dplyr::mutate(across(where(is.numeric), \(x) round(x, 1))) |> 
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
                                                     c("Water Temperature (deg C)", 
                                                       "Dissolved Oxygen (mg/L)",
                                                       "Phosphorus (ug/L)", 
                                                       "Chlorophyll a (mg/m3)", 
-                                                      "Water level (m)", 
+                                                      "Dissolved Organic Carbon (mg/L)", 
                                                       "Secchi Disk Depth (m)",
                                                       "Calcium (mg/L)",
-                                                      "Dissolved Organic Carbon (mg/L)"))) |> 
+                                                      "Water level (m)"))) |> 
       arrange(AxisName)
   }
 }
@@ -216,7 +315,7 @@ prep_profiles <- function(df, park_code, type){
       # year == format(Sys.Date(), "%Y"))|> 
       filter(!is.na(value)) |> 
       # adding month names 
-      mutate(month_long = format(as.Date(end_date), "%b")) |> 
+      mutate(month_long = format(as.Date(end_date), "%B")) |> 
       # arranging for plot
       arrange(AxisName,
               month,
@@ -237,7 +336,7 @@ prep_profiles <- function(df, park_code, type){
       mutate(depth = round(depth, 0)) |> 
       filter(!is.na(value)) |> 
       # adding month names
-      mutate(month_long = format(as.Date(end_date), "%b")) |>
+      mutate(month_long = format(as.Date(end_date), "%B")) |>
       # getting min and max
       summarise(min_value = min(value, na.rm = TRUE),
                 max_value = max(value, na.rm = TRUE),
@@ -264,7 +363,13 @@ prep_profiles <- function(df, park_code, type){
 ## Plot functions ----
 
 ### map 
-plot_map <- function(df){
+plot_map <- function(df, park_code, type){
+  
+  # setting type 
+  type <- type[[park_code]]
+  
+  if(identical(type, "lake")){
+  
   leaflet(df) |> 
     addProviderTiles("Esri.WorldStreetMap") |> 
     addCircleMarkers(lng = ~lon,
@@ -272,6 +377,22 @@ plot_map <- function(df){
                      radius = 5,
                      color = "blue",
                      popup = ~MonitoringLocationName)
+  } else{
+      
+    # color palette
+    col_pal <- colorFactor(palette = c("blue",
+                                       "darkgreen"),
+                           domain = df$site_type)
+    
+    leaflet(df) |> 
+      addProviderTiles("Esri.WorldStreetMap") |> 
+      addCircleMarkers(lng = ~lon,
+                       lat = ~lat,
+                       radius = 5,
+                       color = ~col_pal(site_type),
+                       popup = ~MonitoringLocationName)
+    
+    }
 }
 
 ### box plot 
