@@ -49,7 +49,7 @@ discharge1 <- read_waterdata_daily(monitoring_location_id = discharge_sites,
                                                   "unit_of_measure"),
                                    time = c("2007-01-01",
                                             format(Sys.Date(), "%Y-%m-%d")),
-                                   statistic_id = "00003")
+                                   statistic_id = "00003") # mean
 
 ## Data wrangling ----
 
@@ -442,7 +442,15 @@ create_table <- function(df){
                min_val_Current = html("<strong>Minimum</strong>"),
                med_Current = html("<strong>Median</strong>"),
                max_val_Current = html("<strong>Maximum</strong>"),
-               stan_dev_Current = html("<strong>Standard \nDeviation</strong>")) 
+               stan_dev_Current = html("<strong>Standard \nDeviation</strong>")) |> 
+    cols_align_decimal(columns = c("min_val_Historic", 
+                                   "med_Historic",
+                                   "max_val_Historic", 
+                                   "stan_dev_Historic",
+                                   "min_val_Current",
+                                   "med_Current",
+                                   "max_val_Current",
+                                   "stan_dev_Current"))
     
 }
 

@@ -27,15 +27,33 @@ source("WaterQuality_AnnualReport_compile.R")
 df <- wqp_data |> 
   dplyr::filter(Park == params$park)
 
-# getting site names 
-sites <- df |> 
-  distinct(MonitoringLocationName) |> 
-  arrange(MonitoringLocationName) |> 
-  pull() 
-
-# selecting params
+# selecting park type 
 type <- park_type[params$park]
 
+# getting site names 
+if(type == "lake"){
+  
+  sites <- df |> 
+    dplyr::distinct(MonitoringLocationName) |> 
+    dplyr::arrange(MonitoringLocationName) |> 
+    dplyr::pull() 
+  
+} else{
+  
+  # note: this chunk of code will not work if more river parks are selected. 
+  site_order <- c("CCC", "Leonards", "Earl", "Nam Tr.", "Norway Pt.",
+                  "Hwy 70", "Nevers", "Osceola")
+  
+  sites <- df  |> 
+  dplyr::mutate(MonitoringLocationName = factor(MonitoringLocationName,
+                                                levels = site_order)) |> 
+  dplyr::distinct(MonitoringLocationName) |> 
+  dplyr::arrange(MonitoringLocationName) |> 
+  dplyr::pull()
+}
+
+
+# selecting params
 if(type == "lake"){
   selected_params <- lake_param
 } else{
@@ -64,11 +82,13 @@ plot_map(df = map_data,
          type = park_type)
 
 if(type == "river"){
-  cat("A map of water quality sampling locations (blue) for", 
+  cat("<p><strong>Figure 1. </strong>A map of water quality sampling locations (blue) for", 
       params$park,
-      ". Locations marked by green are sites where stream flow is measured by the USGS. \n\n")
+      ". Locations marked by green are sites where stream flow is measured by the USGS. ",
+      "The USGS gauge on the Namekagon River at Leonards, WI (USGS-05331833) is used for stream flow at three sites: Leonards, Earl, and Nam Tr. The USGS gauge on the St. Croix River near Danbury, WI (USGS-05333500) is used for stream flow at three sites: CCC Bridge, Norway Point, and Hwy 70. The USGS gauge on the St. Croix River at St. Croix Falls, WI (USGS-05340500) is used for stream flow at two sites: Nevers Dam and Osceola.",
+      "\n\n")
 } else{
-  cat("A map of water quality sampling locations (blue) for", 
+  cat("<p><strong>Figure 1. </strong>A map of water quality sampling locations (blue) for", 
       params$park,
       ".\n\n")
 }
@@ -103,7 +123,7 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("Boxplots showing ", current_year," data (green) compared to all data (blue) collected at", site, 
+  cat("<p><strong>Figure 2. </strong>Boxplots showing ", current_year," data (green) compared to all data (blue) collected at", site, 
       " for ", 
       if (length(selected_params) > 1)
         paste(paste(selected_params[-length(selected_params)], collapse = ", "),
@@ -121,7 +141,7 @@ for(site in sites){
   
   table <- create_table(table_data)
   
-  cat("A table showing summary statistics ( minimum, median, maximum, and standard deviation )",
+  cat("<p><strong>Table 1. </strong>A table showing summary statistics ( minimum, median, maximum, and standard deviation )",
       "for historic data ( 2006 - ", as.numeric(current_year) - 1,
       ") and current year (",
       current_year,
@@ -151,7 +171,7 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ",
+  cat("<p><strong>Figure 3. </strong>Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ",
       current_year,". The shaded areas represent the minimum and maximum values recored at each depth at ",
       site,
       " from 2006 - ",
