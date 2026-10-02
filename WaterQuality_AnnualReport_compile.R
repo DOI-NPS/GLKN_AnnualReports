@@ -48,7 +48,8 @@ discharge1 <- read_waterdata_daily(monitoring_location_id = discharge_sites,
                                                   "value",
                                                   "unit_of_measure"),
                                    time = c("2007-01-01",
-                                            format(Sys.Date(), "%Y-%m-%d")),
+                                            "2024-12-31"),
+                                            # format(Sys.Date(), "%Y-%m-%d")),
                                    statistic_id = "00003") # mean
 
 ## Data wrangling ----
@@ -208,7 +209,7 @@ prep_boxplot <- function(df, park_code, type){
   type <- type[[park_code]]
   
   # filtering based on type and releveling 
-  parameters <- if(identical(type, "river")){
+  if(identical(type, "river")){
     df |> 
       dplyr::filter(AxisName %in% river_param,
                     !is.na(value))  |> 
@@ -237,13 +238,120 @@ prep_boxplot <- function(df, park_code, type){
   }
 }
 
+## timeseries data 
+prep_timeseries <- function(df, park_code, type){
+  
+  # setting type 
+  type <- type[[park_code]]
+  
+  # filtering based on type and releveling 
+  if(identical(type, "river")){
+    data <- df |> 
+      dplyr::filter(AxisName %in% river_param,
+                    !is.na(value))  |> 
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    c("Discharge (ft^3/s)",
+                                                      "Total suspended solids (mg/L)",
+                                                      "Phosphorus (ug/L)", 
+                                                      "Calcium (mg/L)", 
+                                                      "Water Temperature (deg C)", 
+                                                      "Nitrate (ug/L)", 
+                                                      "Chlorophyll a (mg/m3)", 
+                                                      "Chloride (mg/L)")))  |> 
+      # summarising data 
+      dplyr::summarise(value = case_when(n() == 1 ~ value[1], # needed with duplicate values 
+                                         n() == 2 ~ mean(value, na.rm = TRUE),
+                                         n() >= 3 ~ median(value, na.rm = TRUE)),
+                       .by = c(Park,
+                               MonitoringLocationName,
+                               month,
+                               month_name,
+                               year,
+                               AxisName,
+                               lat,
+                               lon,
+                               value_unit,
+                               period))
+    
+    data_current <- data |> 
+      dplyr::filter(period == "Current")
+    
+    data_historic <- data |> 
+      dplyr::filter(period == "Historic",
+                    !is.na(value)) |> 
+      dplyr::summarise(hist_min = min(value, na.rm = TRUE),
+                       hist_max = max(value, na.rm = TRUE),
+                       hist_2 = quantile(value, probs = 0.025, na.rm = TRUE),
+                       hist_95 = quantile(value, probs = 0.95, na.rm = TRUE),
+                       hist_25 = quantile(value, probs = 0.25, na.rm = TRUE),
+                       hist_75 = quantile(value, probs = 0.75, na.rm = TRUE),
+                       hist_med = median(value, na.rm = TRUE),
+                       .by = c(MonitoringLocationName,
+                               AxisName,
+                               month,
+                               month_name))
+    
+    return(list(current = data_current,
+                historic = data_historic))
+      
+  } else{
+    data <- df |> 
+      dplyr::filter(AxisName %in% lake_param,
+                    !is.na(value)) |> 
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    c("Water Temperature (deg C)", 
+                                                      "Phosphorus (ug/L)", 
+                                                      "Dissolved Organic Carbon (mg/L)", 
+                                                      "Calcium (mg/L)",
+                                                      "Dissolved Oxygen (mg/L)", 
+                                                      "Chlorophyll a (mg/m3)",
+                                                      "Secchi Disk Depth (m)", 
+                                                      "Water level (m)")))  |> 
+      # summarising data 
+      dplyr::summarise(value = case_when(n() == 1 ~ value[1], # needed with duplicate values 
+                                         n() == 2 ~ mean(value, na.rm = TRUE),
+                                         n() >= 3 ~ median(value, na.rm = TRUE)),
+                       .by = c(Park,
+                               MonitoringLocationName,
+                               month,
+                               month_name,
+                               year,
+                               AxisName,
+                               lat,
+                               lon,
+                               value_unit,
+                               period))
+    
+    data_current <- data |> 
+      dplyr::filter(period == "Current")
+    
+    data_historic <- data |> 
+      dplyr::filter(period == "Historic",
+                    !is.na(value)) |> 
+      dplyr::summarise(hist_min = min(value, na.rm = TRUE),
+                       hist_max = max(value, na.rm = TRUE),
+                       hist_2 = quantile(value, probs = 0.025, na.rm = TRUE),
+                       hist_95 = quantile(value, probs = 0.95, na.rm = TRUE),
+                       hist_25 = quantile(value, probs = 0.25, na.rm = TRUE),
+                       hist_75 = quantile(value, probs = 0.75, na.rm = TRUE),
+                       hist_med = median(value, na.rm = TRUE),
+                       .by = c(MonitoringLocationName,
+                               AxisName,
+                               month,
+                               month_name))
+    
+    return(list(current = data_current,
+                historic = data_historic))
+  }
+}
+
 ### table data 
 prep_table <- function(df, park_code, type){
   # setting type 
   type <- type[[park_code]]
   
   # filtering based on type
-  parameters <- if(identical(type, "river")){
+  if(identical(type, "river")){
     df |> 
       dplyr::filter(AxisName %in% river_param)|> 
       filter(!is.na(value)) |> 
@@ -304,7 +412,7 @@ prep_profiles <- function(df, park_code, type){
   type <- type[[park_code]]
   
   # filtering based on type
-  parameters <- if(identical(type, "lake")){
+  if(identical(type, "lake")){
     
     # current years data
     current_data <- df |> 
@@ -407,11 +515,62 @@ plot_boxplot <- function(df){
                ncol = 4) +
     labs(fill = "Period",
          x = "Period",
-         y = "Value") +
+         y = "Value",
+         alt = "A boxplot showing current year data compared to all data collected at the site.") +
     scale_fill_manual(labels = date_labels,
-                      values = c("#457B9D",
-                                 "#6B8E23")) +
+                      values = c("#0982C8",
+                                 "#6B8E15")) +
     scale_x_discrete(labels = date_labels) +
+    theme_bw() + 
+    theme(text = element_text(size = 16))
+}
+
+### timeseries 
+plot_timeseries <- function(current, historic){
+  
+  ggplot() + 
+    geom_ribbon(data = historic,
+                aes(ymin = hist_min,
+                    ymax = hist_max,
+                    x = as.numeric(month),
+                    fill = "Historic Range"),
+                alpha = 0.3) +
+    geom_ribbon(data = historic,
+                aes(ymin = hist_2,
+                    ymax = hist_95,
+                    x = as.numeric(month),
+                    fill = "Hist. 95% Range"),
+                alpha = 0.3) +
+    geom_ribbon(data = historic,
+                aes(ymin = hist_25,
+                    ymax = hist_75,
+                    x = as.numeric(month),
+                    fill = "Hist. 50% Range"),
+                alpha = 0.3) +
+    geom_line(data = historic,
+              aes(x = as.numeric(month),
+                  y = hist_med,
+                  color = "Hist. Median"),
+              size = 1) +
+    geom_point(data = current,
+               aes(x = as.numeric(month),
+                   y = value,
+                   color = date_labels[2])) +
+    scale_fill_manual(name = "",
+                      values = c("Historic Range" = "#8FD3FA",
+                                 "Hist. 95% Range" = "#63C1F8",
+                                 "Hist. 50% Range" = "#27A9F5")) +
+    scale_color_manual(name = "",
+                       values = c("Hist. Median" = "#0982C8",
+                                  "2026" = "black")) +
+    labs(x = "Month",
+         y = "Value",
+         alt = "A timeseries figure showing monthly surface measurements in the upper 2m of the water column for the site and each parameter.") + 
+    scale_x_continuous(breaks = 1:12,
+                       labels = month.abb) +
+    facet_wrap(~AxisName,
+               scales = "free",
+               ncol = 4) +
     theme_bw() + 
     theme(text = element_text(size = 16))
 }
@@ -487,11 +646,12 @@ plot_depthprofile <- function(current, historic){
     labs(x = "Value",
          y = "Depth (m)",
          fill = "Parameter",
-         color = "Parameter") +
-    scale_fill_manual(values = c("#457B9D",
-                                 "#795548")) +
-    scale_color_manual(values = c("#457B9D",
-                                  "#795548")) +
+         color = "Parameter",
+         alt = "Depth profile plots for dissolved oxygen (mg/L) and water temperature in different months for the site. Historic minimum and maximum ranges are plotted as bands.") +
+    scale_fill_manual(values = c("#0982C8",
+                                 "#C8AF60")) +
+    scale_color_manual(values = c("#0982C8",
+                                  "#C8AF60")) +
     theme_bw() + 
     theme(text = element_text(size = 16))
 }

@@ -6,10 +6,10 @@ output:
     css: www/styles.css
 
 params:
-  park: "ISRO" # default
-  park_full: "Isle Royale National Park" # default
-  # park: "SACN" # default
-  # park_full: "St. Croix National Scenic Riverway" # default
+  # park: "ISRO" # default
+  # park_full: "Isle Royale National Park" # default
+  park: "SACN" # default
+  park_full: "St. Croix National Scenic Riverway" # default
 ---
 
 ```{r setup, include=FALSE}
@@ -104,9 +104,9 @@ for(site in sites){
   cat("#### ", site, "\n\n")
   
   print(htmltools::includeHTML(file.path("park_summaries",
-                                   params$park,
-                                   paste0(site,
-                                          "_summary.html"))))
+                                         params$park,
+                                         paste0(site,
+                                         "_summary.html"))))
   
   # subsetting site data 
   site_data <- df |> 
@@ -130,6 +130,26 @@ for(site in sites){
               ", and", selected_params[length(selected_params)])
       else selected_params,
       ". The boxplots show the median (center line) and 25th and 75th percentiles (box edges), with whiskers (1.5xIQR) and outliers (points).",
+      "\n\n")
+  
+  cat("<br><br>")
+  
+  # Timeseries ----
+  timeseriesdata <- prep_timeseries(df = site_data,
+                                    park_code = params$park,
+                                    type = park_type)
+  
+  ts <- plot_timeseries(current = timeseriesdata$current,
+                        historic = timeseriesdata$historic)
+  
+  print(ts)
+  
+  cat("<br><br>")
+  
+  cat("<p><strong>Figure 3. </strong>Timeseries showing monthly surface measurements in the upper 2m of the water column for ", site,
+      ". The blue bands represent the total range (minimum and maximum) and 95% and 50% range of historic values ( 2006 - ", 
+      as.numeric(current_year) - 1, 
+      ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", current_year, " values collected during each month. For data where there were two values collected within the upper 2m of the water column, a mean was calculated For data where three or more values were taken, a median was calculated.",
       "\n\n")
   
   cat("<br><br>")
@@ -171,7 +191,7 @@ for(site in sites){
   
   cat("<br><br>")
   
-  cat("<p><strong>Figure 3. </strong>Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ",
+  cat("<p><strong>Figure 4. </strong>Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ",
       current_year,". The shaded areas represent the minimum and maximum values recored at each depth at ",
       site,
       " from 2006 - ",
