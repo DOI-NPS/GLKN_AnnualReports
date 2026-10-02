@@ -38,7 +38,7 @@ p {
     /* position: relative;*/
     display: inline-block;
     margin:0 auto;
-    color: #778A77;
+    color: #687b68;
     font-family: "FrutigerLTStd-Light",FrutigerLTStd-Light, sans-serif;
     font-size: 16px;
     text-indent:0;
@@ -47,7 +47,7 @@ p {
 }
 .nav-pills>li.active>a, .nav-pills>li.active>a:hover, .nav-pills>li.active>a:focus {
     color: #ffffff;
-    background-color: #778A77;
+    background-color: #687b68;
     /*padding: 10px 15px;*/
     margin:0 auto;
 
@@ -55,7 +55,7 @@ p {
 
 /* Link color */
 a {
-  color: #979154;
+  color: #7e783b;
   text-decoration: none; /* Optional: remove underline */
 }
 
