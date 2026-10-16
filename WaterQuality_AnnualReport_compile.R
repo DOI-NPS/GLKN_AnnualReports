@@ -9,8 +9,6 @@
 library(readr) # tidyverse data import
 library(dplyr) # data wrangling
 library(ggplot2) # plotting
-# library(knitr) # for kable
-# library(kableExtra) # custom kable features
 library(leaflet) # for mapping
 library(gt) # for table
 library(tidyr) # for pivoting, extract
@@ -20,21 +18,31 @@ library(sf) # spatial
 library(lubridate)
 
 # Start of Source Code ----
+
+## params from markdown ----
+current_year <- as.integer(params$current_year)
+discharge_date <- as.character(params$discharge_date)
+
 ## Loading data ----
 
-## water quality data (from wqp_retrival.r in Data Visualizer)
-wqp_data1 <- read_csv(paste0("./data/wqp_glkn_",
-                             format(Sys.Date(), "%Y"),
-                             ".csv"))
+## water quality data (from wqp_retrival.r in Data Visualizer): Make sure year is correct
+wqp_path <- sprintf(paste0("./data/wqp_glkn_",
+                           format(Sys.Date(), "%Y"),
+                           ".csv"))
 # or 
-# wqp_data1 <- read_csv("./data/wqp_glkn_2026.csv")
+# wqp_path <- sprintf(paste0("./data/wqp_glkn_2026.csv")) # Make sure to update year
+
+# Stop if file doesn't exist
+stopifnot(file.exists(wqp_path))
+
+# load data 
+wqp_data1 <- readr::read_csv(wqp_path)
 
 # keeping all site data from active sites
 wqp_data2 <- wqp_data1 |> 
-  filter(any(year == 2024),
-         .by = MonitoringLocationName)
-  # filter(any(year == format(Sys.Date(), "%Y")),
-         # .by = MonitoringLocationIdentifier)
+  filter(any(year == current_year, na.rm = TRUE),
+         .by = MonitoringLocationName) |> 
+  filter(year <= current_year)
 
 ## discharge data from USGS
 discharge_sites <- c("USGS-05331833",
@@ -48,8 +56,7 @@ discharge1 <- read_waterdata_daily(monitoring_location_id = discharge_sites,
                                                   "value",
                                                   "unit_of_measure"),
                                    time = c("2007-01-01",
-                                            "2024-12-31"),
-                                            # format(Sys.Date(), "%Y-%m-%d")),
+                                            discharge_date),
                                    statistic_id = "00003") # mean
 
 ## Data wrangling ----
@@ -81,6 +88,7 @@ wqp_data3 <- wqp_data2 |>
   # cleaning up columns 
   select(MonitoringLocationIdentifier,
          MonitoringLocationName,
+         MonitoringLocationName_Long,
          end_date,
          year,
          month,
@@ -146,24 +154,23 @@ wqp_data4 <- bind_rows(wqp_data3,
                        discharge)
 
 wqp_data <- wqp_data4 |> 
-  fill(MonitoringLocationName,
-       Park,
-       MonitoringLocationTypeName,
-       .by = "MonitoringLocationIdentifier") |> 
+  tidyr::fill(MonitoringLocationName,
+              MonitoringLocationName_Long,
+              Park,
+              MonitoringLocationTypeName,
+              .by = "MonitoringLocationIdentifier") |> 
   # adding month and period (for historic vs current)
   dplyr::mutate(month_name = lubridate::month(end_date,
                                               label = TRUE,
                                               abbr = FALSE),
-                period = case_when(year >= 2024 ~ "Current",
-                                   year < 2024 ~ "Historic",
+                period = case_when(year >= current_year ~ "Current",
+                                   year < current_year ~ "Historic",
                                    TRUE ~ NA),
                 period = fct_relevel(period,
                                      c("Historic",
                                        "Current")),
                 site_type = case_when(CharacteristicName == "Discharge" ~ "Stream Guage",
                                       TRUE ~ "Monitoring"))
-  # period = case_when(year == format(Sys.Date(), "%Y") ~ "Current",
-  #                    year < format(Sys.Date(), "%Y") ~ "Historic"))
 
 ## park types 
 park_type <- c("ISRO" = "lake",
@@ -183,23 +190,26 @@ lake_param <- c("Water Temperature (deg C)", "Dissolved Oxygen (mg/L)",
                 "Calcium (mg/L)", "Water level (m)")
 
 # Date labels 
-date_labels <- c(paste0("2006 - ", as.numeric(format(Sys.Date(), "%Y")) - 1),
-                 format(Sys.Date(), "%Y"))
+# date_labels <- c(paste0("2006 - ", as.numeric(current_year) - 1),
+#                  current_year)
+date_labels <- c(paste0("2006 - ", as.numeric(current_year) - 1),
+                 as.character(current_year))
 
 ## Data prep functions ----
 ### map data 
 prep_map <- function(df){
   df |> 
     # assigning USGS names 
-    mutate(MonitoringLocationName = case_when(!is.na(monitoring_location_id) ~ monitoring_location_id,
-                                              TRUE ~ MonitoringLocationName)) |> 
+    dplyr::mutate(MonitoringLocationName_Long = dplyr::case_when(!is.na(monitoring_location_id) ~ 
+                                                                   monitoring_location_id,
+                                              TRUE ~ MonitoringLocationName_Long)) |> 
     # selecting lat/lon
-    select(MonitoringLocationName,
-           site_type,
-           lat,
-           lon) |>
+    dplyr::select(MonitoringLocationName_Long,
+                  site_type,
+                  lat,
+                  lon) |>
     # getting distinct values 
-    distinct()
+    dplyr::distinct()
 }
 
 ### boxplot data 
@@ -263,7 +273,7 @@ prep_timeseries <- function(df, park_code, type){
                                          n() == 2 ~ mean(value, na.rm = TRUE),
                                          n() >= 3 ~ median(value, na.rm = TRUE)),
                        .by = c(Park,
-                               MonitoringLocationName,
+                               MonitoringLocationName_Long,
                                month,
                                month_name,
                                year,
@@ -286,7 +296,7 @@ prep_timeseries <- function(df, park_code, type){
                        hist_25 = quantile(value, probs = 0.25, na.rm = TRUE),
                        hist_75 = quantile(value, probs = 0.75, na.rm = TRUE),
                        hist_med = median(value, na.rm = TRUE),
-                       .by = c(MonitoringLocationName,
+                       .by = c(MonitoringLocationName_Long,
                                AxisName,
                                month,
                                month_name))
@@ -312,7 +322,7 @@ prep_timeseries <- function(df, park_code, type){
                                          n() == 2 ~ mean(value, na.rm = TRUE),
                                          n() >= 3 ~ median(value, na.rm = TRUE)),
                        .by = c(Park,
-                               MonitoringLocationName,
+                               MonitoringLocationName_Long,
                                month,
                                month_name,
                                year,
@@ -335,7 +345,7 @@ prep_timeseries <- function(df, park_code, type){
                        hist_25 = quantile(value, probs = 0.25, na.rm = TRUE),
                        hist_75 = quantile(value, probs = 0.75, na.rm = TRUE),
                        hist_med = median(value, na.rm = TRUE),
-                       .by = c(MonitoringLocationName,
+                       .by = c(MonitoringLocationName_Long,
                                AxisName,
                                month,
                                month_name))
@@ -350,23 +360,40 @@ prep_table <- function(df, park_code, type){
   # setting type 
   type <- type[[park_code]]
   
+  # checking periods 
+  period_levels <- c("Historic", "Current")
+  
   # filtering based on type
   if(identical(type, "river")){
-    df |> 
+    suppressWarnings({
+      df |> 
       dplyr::filter(AxisName %in% river_param)|> 
-      filter(!is.na(value)) |> 
-      summarise(med = median(value, na.rm = TRUE),
-                stan_dev = sd(value, na.rm = TRUE),
-                min_val = min(value, na.rm = TRUE),
-                max_val = max(value, na.rm = TRUE),
-                .by = c("AxisName",
-                        "period")) |> 
-      pivot_wider(names_from = period,
-                  values_from = c(med, 
-                                  stan_dev,
-                                  min_val,
-                                  max_val)) |> 
-      dplyr::mutate(across(where(is.numeric), \(x) round(x, 1))) |> 
+      dplyr::filter(!is.na(value)) |> 
+      tidyr::complete(AxisName = c("Discharge (ft^3/s)",
+                                   "Water Temperature (deg C)",
+                                   "Phosphorus (ug/L)",
+                                   "Chlorophyll a (mg/m3)",
+                                   "Total suspended solids (mg/L)",
+                                   "Nitrate (ug/L)", 
+                                   "Calcium (mg/L)", 
+                                   "Chloride (mg/L)"),
+                      period = period_levels) |> 
+      dplyr::summarise(med = ifelse(all(is.na(value)), NA_real_, 
+                                    median(value, na.rm = TRUE)),
+                       stan_dev = ifelse(sum(!is.na(value)) <= 1, NA_real_,
+                                         sd(value, na.rm = TRUE)),
+                       min_val = ifelse(all(is.na(value)), NA_real_, 
+                                        min(value, na.rm = TRUE)),
+                       max_val = ifelse(all(is.na(value)), NA_real_, 
+                                        max(value, na.rm = TRUE)),
+                       .by = c("AxisName",
+                               "period")) |> 
+      tidyr::pivot_wider(names_from = period,
+                         values_from = c(med, 
+                                         stan_dev,
+                                         min_val,
+                                         max_val)) |> 
+      dplyr::mutate(dplyr::across(where(is.numeric), \(x) round(x, 1))) |> 
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
                                                     c("Discharge (ft^3/s)",
                                                       "Water Temperature (deg C)",
@@ -376,22 +403,46 @@ prep_table <- function(df, park_code, type){
                                                       "Nitrate (ug/L)", 
                                                       "Calcium (mg/L)", 
                                                       "Chloride (mg/L)"))) |> 
-      arrange(AxisName)
+        dplyr::select(AxisName,
+                      min_val_Historic, 
+                      med_Historic, 
+                      max_val_Historic, 
+                      stan_dev_Historic,
+                      min_val_Current,  
+                      med_Current,  
+                      max_val_Current,  
+                      stan_dev_Current) |> 
+      dplyr::arrange(AxisName)
+    })
   } else{
-    df |> 
+    suppressWarnings({
+      df |> 
       dplyr::filter(AxisName %in% lake_param)|> 
-      filter(!is.na(value)) |> 
-      summarise(med = median(value, na.rm = TRUE),
-                stan_dev = sd(value, na.rm = TRUE),
-                min_val = min(value, na.rm = TRUE),
-                max_val = max(value, na.rm = TRUE),
-                .by = c("AxisName",
-                        "period")) |>   
-      pivot_wider(names_from = period,
-                  values_from = c(med, 
-                                  stan_dev,
-                                  min_val,
-                                  max_val)) |> 
+      dplyr::filter(!is.na(value)) |> 
+      tidyr::complete(AxisName = c("Water Temperature (deg C)", 
+                                   "Dissolved Oxygen (mg/L)",
+                                   "Phosphorus (ug/L)", 
+                                   "Chlorophyll a (mg/m3)", 
+                                   "Dissolved Organic Carbon (mg/L)", 
+                                   "Secchi Disk Depth (m)",
+                                   "Calcium (mg/L)",
+                                   "Water level (m)"),
+                      period = period_levels)|> 
+      dplyr::summarise(med = ifelse(all(is.na(value)), NA_real_, 
+                                    median(value, na.rm = TRUE)),
+                       stan_dev = ifelse(sum(!is.na(value)) <= 1, NA_real_,
+                                         sd(value, na.rm = TRUE)),
+                       min_val = ifelse(all(is.na(value)), NA_real_, 
+                                        min(value, na.rm = TRUE)),
+                       max_val = ifelse(all(is.na(value)), NA_real_, 
+                                        max(value, na.rm = TRUE)),
+                       .by = c("AxisName",
+                               "period")) |> 
+      tidyr::pivot_wider(names_from = period,
+                         values_from = c(med, 
+                                         stan_dev,
+                                         min_val,
+                                         max_val)) |> 
       dplyr::mutate(across(where(is.numeric), \(x) round(x, 1))) |> 
       dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
                                                     c("Water Temperature (deg C)", 
@@ -402,7 +453,17 @@ prep_table <- function(df, park_code, type){
                                                       "Secchi Disk Depth (m)",
                                                       "Calcium (mg/L)",
                                                       "Water level (m)"))) |> 
-      arrange(AxisName)
+        dplyr::select(AxisName,
+                      min_val_Historic, 
+                      med_Historic, 
+                      max_val_Historic, 
+                      stan_dev_Historic,
+                      min_val_Current,  
+                      med_Current,  
+                      max_val_Current,  
+                      stan_dev_Current) |> 
+      dplyr::arrange(AxisName)
+    })
   }
 }
 
@@ -419,17 +480,16 @@ prep_profiles <- function(df, park_code, type){
       # filtering depth data and current year
       dplyr::filter(AxisName %in% c("Dissolved Oxygen (mg/L)",
                                     "Water Temperature (deg C)"),
-                    year == 2024) |> 
-      # year == format(Sys.Date(), "%Y"))|> 
-      filter(!is.na(value)) |> 
+                    period == "Current") |> 
+      dplyr::filter(!is.na(value)) |> 
       # adding month names 
-      mutate(month_long = format(as.Date(end_date), "%B")) |> 
+      dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |> 
       # arranging for plot
-      arrange(AxisName,
+      dplyr::arrange(AxisName,
               month,
               depth) |> 
-      mutate(month_long = factor(month_long,
-                                 levels = unique(month_long)))
+      dplyr::mutate(month_long = factor(month_long,
+                                        levels = unique(month_long)))
     
       # getting unique months 
       valid_months <- unique(current_data$month)
@@ -437,27 +497,27 @@ prep_profiles <- function(df, park_code, type){
     # all data 
     all_data <- df |> 
       # filtering valid months 
-      filter(month %in% valid_months,
-             AxisName %in% c("Dissolved Oxygen (mg/L)",
-                             "Water Temperature (deg C)")) |> 
+      dplyr::filter(month %in% valid_months,
+                    AxisName %in% c("Dissolved Oxygen (mg/L)",
+                                    "Water Temperature (deg C)")) |> 
       # round depths
-      mutate(depth = round(depth, 0)) |> 
-      filter(!is.na(value)) |> 
+      dplyr::mutate(depth = round(depth, 0)) |> 
+      dplyr::filter(!is.na(value)) |> 
       # adding month names
-      mutate(month_long = format(as.Date(end_date), "%B")) |>
+      dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |>
       # getting min and max
-      summarise(min_value = min(value, na.rm = TRUE),
-                max_value = max(value, na.rm = TRUE),
-                .by = c("depth",
-                        "month",
-                        "AxisName",
-                        "month_long")) |> 
+      dplyr::summarise(min_value = min(value, na.rm = TRUE),
+                       max_value = max(value, na.rm = TRUE),
+                       .by = c("depth",
+                               "month",
+                               "AxisName",
+                               "month_long")) |> 
       # arranging for plot 
-      arrange(AxisName,
-              month,
-              depth) |> 
-      mutate(month_long = factor(month_long,
-                                 levels = unique(month_long)))
+      dplyr::arrange(AxisName,
+                     month,
+                     depth) |> 
+      dplyr::mutate(month_long = factor(month_long,
+                                        levels = unique(month_long)))
     
     return(list(current = current_data,
                 historic = all_data))
@@ -484,7 +544,7 @@ plot_map <- function(df, park_code, type){
                      lat = ~lat,
                      radius = 5,
                      color = "blue",
-                     popup = ~MonitoringLocationName)
+                     popup = ~MonitoringLocationName_Long)
   } else{
       
     # color palette
@@ -498,7 +558,7 @@ plot_map <- function(df, park_code, type){
                        lat = ~lat,
                        radius = 5,
                        color = ~col_pal(site_type),
-                       popup = ~MonitoringLocationName)
+                       popup = ~MonitoringLocationName_Long)
     
     }
 }
@@ -527,7 +587,7 @@ plot_boxplot <- function(df){
 
 ### timeseries 
 plot_timeseries <- function(current, historic){
-  
+
   ggplot() + 
     geom_ribbon(data = historic,
                 aes(ymin = hist_min,
@@ -551,7 +611,7 @@ plot_timeseries <- function(current, historic){
               aes(x = as.numeric(month),
                   y = hist_med,
                   color = "Hist. Median"),
-              size = 1) +
+              linewidth = 1) +
     geom_point(data = current,
                aes(x = as.numeric(month),
                    y = value,
@@ -562,11 +622,11 @@ plot_timeseries <- function(current, historic){
                                  "Hist. 50% Range" = "#27A9F5")) +
     scale_color_manual(name = "",
                        values = c("Hist. Median" = "#0982C8",
-                                  "2026" = "black")) +
+                                  setNames("black", date_labels[2]))) +
     labs(x = "Month",
          y = "Value",
          alt = "A timeseries figure showing monthly surface measurements in the upper 2m of the water column for the site and each parameter.") + 
-    scale_x_continuous(breaks = 1:12,
+    scale_x_continuous(breaks = 2:10,
                        labels = month.abb) +
     facet_wrap(~AxisName,
                scales = "free",
@@ -577,40 +637,57 @@ plot_timeseries <- function(current, historic){
 
 ### table 
 create_table <- function(df){
+  
+  # Ensure spanner columns exist (fill missing ones with NA)
+  needed <- c("min_val_Historic", "med_Historic", "max_val_Historic",
+              "stan_dev_Historic", "min_val_Current", "med_Current",
+              "max_val_Current", "stan_dev_Current")
+  
+  missing <- setdiff(needed, names(df))
+  for (cols in missing) df[[cols]] <- NA_real_
+  
+  # Table
   df |> 
-    gt() |> 
-    tab_spanner(label = html(paste0("<strong>2006 - ",
-                                    as.numeric(format(Sys.Date(), "%Y")) - 1,
-                                    "</strong>")),
-                columns = c(min_val_Historic,
-                            med_Historic,
-                            max_val_Historic,
-                            stan_dev_Historic)) |> 
-    tab_spanner(label = html(paste0("<strong>",
-                                    format(Sys.Date(), "%Y"),
-                                    "</strong>")),
-                columns = c(min_val_Current,
-                            med_Current,
-                            max_val_Current,
-                            stan_dev_Current)) |> 
-    cols_label(AxisName = html("<strong>Parameter</strong>"),
-               min_val_Historic = html("<strong>Minimum</strong>"),
-               med_Historic = html("<strong>Median</strong>"),
-               max_val_Historic = html("<strong>Maximum</strong>"),
-               stan_dev_Historic = html("<strong>Standard \nDeviation</strong>"),
-               min_val_Current = html("<strong>Minimum</strong>"),
-               med_Current = html("<strong>Median</strong>"),
-               max_val_Current = html("<strong>Maximum</strong>"),
-               stan_dev_Current = html("<strong>Standard \nDeviation</strong>")) |> 
-    cols_align_decimal(columns = c("min_val_Historic", 
-                                   "med_Historic",
-                                   "max_val_Historic", 
-                                   "stan_dev_Historic",
-                                   "min_val_Current",
-                                   "med_Current",
-                                   "max_val_Current",
-                                   "stan_dev_Current"))
+    gt::gt() |>
+    gt::tab_spanner(label = html(paste0("<strong>2006 - ",
+                                        as.numeric(current_year) - 1,
+                                        "</strong>")),
+                    columns = c(min_val_Historic,
+                                med_Historic,
+                                max_val_Historic,
+                                stan_dev_Historic)) |> 
+    gt::tab_spanner(label = html(paste0("<strong>",
+                                        current_year,
+                                        "</strong>")),
+                    columns = c(min_val_Current,
+                                med_Current,
+                                max_val_Current,
+                                stan_dev_Current)) |> 
+    gt::cols_label(AxisName = html("<strong>Parameter</strong>"),
+                   min_val_Historic = html("<strong>Minimum</strong>"),
+                   med_Historic = html("<strong>Median</strong>"),
+                   max_val_Historic = html("<strong>Maximum</strong>"),
+                   stan_dev_Historic = html("<strong>Standard \nDeviation</strong>"),
+                   min_val_Current = html("<strong>Minimum</strong>"),
+                   med_Current = html("<strong>Median</strong>"),
+                   max_val_Current = html("<strong>Maximum</strong>"),
+                   stan_dev_Current = html("<strong>Standard \nDeviation</strong>")) |> 
+    gt::cols_align_decimal(columns = c("min_val_Historic", 
+                                       "med_Historic",
+                                       "max_val_Historic", 
+                                       "stan_dev_Historic",
+                                       "min_val_Current",
+                                       "med_Current",
+                                       "max_val_Current",
+                                       "stan_dev_Current")) |> 
+    gt::opt_table_font(size = "14px")
     
+}
+
+### print table 
+print_table <- function(tbl){
+  cat(gt::as_raw_html(tbl))
+  invisible(NULL)
 }
 
 ### depth profile

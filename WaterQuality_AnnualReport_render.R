@@ -49,9 +49,15 @@ for(full_name in names(parks)){
                                 current_year),
          # setting params
          params = list(park = short_name,
-                       park_full = full_name),
+                       park_full = full_name,
+                       current_year = current_year,
+                       discharge_date = "2024-12-01"),
          # start each render with clean environment
          envir = new.env(),
          quiet = TRUE)
+
+cat(sprintf(paste0(short_name, "report written to: %s\n"), 
+            normalizePath(file.path("./reports",
+                                    current_year))))
+
 }
-cat(sprintf("All reports written to: %s\n", normalizePath(out_dir)))
