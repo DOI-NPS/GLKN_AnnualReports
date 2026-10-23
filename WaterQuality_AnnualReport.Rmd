@@ -6,12 +6,13 @@ output:
     css: www/styles.css
 
 params:
-  # park: "ISRO" # default
-  # park_full: "Isle Royale National Park" # default
-  park: "SACN" # default
-  park_full: "St. Croix National Scenic Riverway" # default
+  park: "ISRO" # default
+  park_full: "Isle Royale National Park" # default
+  # park: "SACN" # default
+  # park_full: "St. Croix National Scenic Riverway" # default
   current_year: 2024
   discharge_date: "2024-12-01"
+  scope: "filtered"
 ---
 
 ```{r setup, include=FALSE}
@@ -49,12 +50,11 @@ if(type == "lake"){
   
   sites <- df  |> 
   dplyr::mutate(MonitoringLocationName_Long = factor(MonitoringLocationName_Long,
-                                                levels = site_order)) |> 
+                                                     levels = site_order)) |> 
   dplyr::distinct(MonitoringLocationName_Long) |> 
   dplyr::arrange(MonitoringLocationName_Long) |> 
   dplyr::pull()
 }
-
 
 # selecting params
 if(type == "lake"){
@@ -62,9 +62,6 @@ if(type == "lake"){
 } else{
   selected_params <- river_param
 }
-
-# year designation
-# current_year <- format(Sys.Date(), "%Y")
 ```
 
 ## Overview {.tabset}
@@ -81,8 +78,7 @@ A complete list of parameters monitored at `r params$park` is shown in the Metho
 map_data <- prep_map(df)
 
 plot_map(df = map_data,
-         park_code = params$park,
-         type = park_type)
+         type = type)
 
 if(type == "river"){
   cat("<p><strong>Figure 1. </strong>Water quality sampling locations (blue) for", params$park, ". Green markers indicate sites where average daily stream flow is measured by the U.S. Geological Survey (USGS). Click on the dots to see site names. Discharge (flow) at the USGS gauge on the Namekagon River at Leonards, WI (USGS-05331833) is shown in water quality summaries for Leonards, Earl, and Namekagon Trail. Discharge at the USGS gauge on the St. Croix River near Danbury, WI (USGS-05333500) is shown in water quality summaries for CCC Bridge, Norway Point, and Highway 70. Discharge at the USGS gauge on the St. Croix River at St. Croix Falls, WI (USGS-05340500) is shown in water quality summaries for Nevers Dam and Osceola.\n\n")
@@ -110,8 +106,7 @@ for(site in sites){
   
   # Boxplots ----
   boxplot_data <- prep_boxplot(df = site_data,
-                               park_code = params$park,
-                               type = park_type)
+                               scope = params$scope)
   
   bp <- plot_boxplot(df = boxplot_data)
   
@@ -130,8 +125,7 @@ for(site in sites){
   
   # Timeseries ----
   timeseriesdata <- prep_timeseries(df = site_data,
-                                    park_code = params$park,
-                                    type = park_type)
+                                    scope = params$scope)
   
   ts <- plot_timeseries(current = timeseriesdata$current,
                         historic = timeseriesdata$historic)
@@ -154,8 +148,7 @@ for(site in sites){
   
   # Summary Table ----
   table_data <- prep_table(df = site_data,
-                           park_code = params$park,
-                           type = park_type)
+                           scope = params$scope)
   
   table <- create_table(table_data)
   
@@ -185,8 +178,8 @@ cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, 
 
   # Depth Profile
   profile_data <- prep_profiles(df = site_data,
-                                park_code = params$park,
-                                type = park_type)
+                                type = type,
+                                scope = params$scope)
   
   # run if lake park, skip if not
   if(!is.null(profile_data)){

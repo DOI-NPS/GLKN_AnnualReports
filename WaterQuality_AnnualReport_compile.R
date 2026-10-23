@@ -1,6 +1,14 @@
 # This is the file that runs all the data wrangling for the
-# WaterQuality_AnnualReport.Rmd. If the Rmd does not knit, this is
-# where the error will come from.
+# WaterQuality_AnnualReport.Rmd and the WaterQuality_AnnualReport_Network.Rmd. 
+# This file wrangles all the water quality portal data and USGS stream gauge 
+# data. This file also builds the functions that filter and plot each section of
+# the annual report. In most functions, a dataset, park code, park type, and 
+# scope need to be assigned. The dataset, park code, and type will all auto 
+# populate when running the WaterQuality_AnnualReport_render.R. To switch between 
+# annual reports for parks and annual reports for the Network, change which scope 
+# is commented out at the top of the WaterQuality_AnnualReport.Rmd.
+# 
+# If the Rmd does not knit, this is where the error will come from.
 
 # Note: Run the wqp_retrival.R document in the GLKN Visualizer project to
 # get data for this report. 
@@ -18,6 +26,8 @@ library(sf) # spatial
 library(lubridate)
 
 # Start of Source Code ----
+
+# When troubleshooting make sure to run the setup chunk in the .Rmd file.
 
 ## params from markdown ----
 current_year <- as.integer(params$current_year)
@@ -190,14 +200,18 @@ lake_param <- c("Water Temperature (deg C)", "Dissolved Oxygen (mg/L)",
                 "Calcium (mg/L)", "Water level (m)")
 
 # Date labels 
-# date_labels <- c(paste0("2006 - ", as.numeric(current_year) - 1),
-#                  current_year)
 date_labels <- c(paste0("2006 - ", as.numeric(current_year) - 1),
                  as.character(current_year))
 
 ## Data prep functions ----
+
 ### map data 
 prep_map <- function(df){
+  # preps data for map
+  # ARGS:
+    # df: park filtered data
+  # RETURNS: data for plotting map
+  
   df |> 
     # assigning USGS names 
     dplyr::mutate(MonitoringLocationName_Long = dplyr::case_when(!is.na(monitoring_location_id) ~ 
@@ -213,110 +227,145 @@ prep_map <- function(df){
 }
 
 ### boxplot data 
-prep_boxplot <- function(df, park_code, type){
+prep_boxplot <- function(df, scope = c("filtered", "full")){
+  # preps data for boxplots
+  # ARGS:
+    # df: park filtered data
+    # park_code: park code of data
+    # type: type of park (river or lake)
+    # scope: scope for park or network annual report (filtered or full)
+  # RETURNS: A dataset for boxplot with either a limited or full list of 
+  # parameters to plot.
   
-  # setting type 
-  type <- type[[park_code]]
+  # selecting scope
+  scope <- match.arg(scope)
   
-  # filtering based on type and releveling 
-  if(identical(type, "river")){
+  if(scope == "filtered"){
+    
+    # setting params based on type and releveling 
+    if(identical(type, "river")){
+      # param <- river_param
+      param_order <- c("Discharge (ft^3/s)",
+                       "Total suspended solids (mg/L)",
+                       "Phosphorus (ug/L)",
+                       "Calcium (mg/L)",
+                       "Water Temperature (deg C)",
+                       "Nitrate (ug/L)",
+                       "Chlorophyll a (mg/m3)",
+                       "Chloride (mg/L)")
+    } else { # type == lake
+      # param <- lake_param
+      param_order <- c("Water Temperature (deg C)",
+                       "Phosphorus (ug/L)",
+                       "Dissolved Organic Carbon (mg/L)",
+                       "Calcium (mg/L)",
+                       "Dissolved Oxygen (mg/L)",
+                       "Chlorophyll a (mg/m3)",
+                       "Secchi Disk Depth (m)",
+                       "Water level (m)")
+    }
+      df |> 
+        # filtering river parameters and removing NA values
+        dplyr::filter(AxisName %in% selected_params,
+                      !is.na(value))  |> 
+        # releveling parameters
+        dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                      param_order))
+      
+  } else { # scope == "full"
     df |> 
-      dplyr::filter(AxisName %in% river_param,
-                    !is.na(value))  |> 
-      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Discharge (ft^3/s)",
-                                                      "Total suspended solids (mg/L)",
-                                                      "Phosphorus (ug/L)", 
-                                                      "Calcium (mg/L)", 
-                                                      "Water Temperature (deg C)", 
-                                                      "Nitrate (ug/L)", 
-                                                      "Chlorophyll a (mg/m3)", 
-                                                      "Chloride (mg/L)")))
-  } else{
-    df |> 
-      dplyr::filter(AxisName %in% lake_param,
-                    !is.na(value)) |> 
-      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Water Temperature (deg C)", 
-                                                      "Phosphorus (ug/L)", 
-                                                      "Dissolved Organic Carbon (mg/L)", 
-                                                      "Calcium (mg/L)",
-                                                      "Dissolved Oxygen (mg/L)", 
-                                                      "Chlorophyll a (mg/m3)",
-                                                      "Secchi Disk Depth (m)", 
-                                                      "Water level (m)")))
+      # removing NA values
+      dplyr::filter(!is.na(value))
   }
 }
 
 ## timeseries data 
-prep_timeseries <- function(df, park_code, type){
+prep_timeseries <- function(df, scope = c("filtered", "full")){
+  # preps data for timeseries
+  # ARGS:
+  # df: park filtered data
+  # park_code: park code of data
+  # type: type of park (river or lake)
+  # scope: scope for park or network annual report (filtered or full)
+  # RETURNS: A dataset for timeseries plots with either a limited or full list of 
+  # parameters to plot.
   
-  # setting type 
-  type <- type[[park_code]]
+  # selecting scope
+  scope <- match.arg(scope)
   
-  # filtering based on type and releveling 
-  if(identical(type, "river")){
-    data <- df |> 
-      dplyr::filter(AxisName %in% river_param,
-                    !is.na(value))  |> 
-      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Discharge (ft^3/s)",
-                                                      "Total suspended solids (mg/L)",
-                                                      "Phosphorus (ug/L)", 
-                                                      "Calcium (mg/L)", 
-                                                      "Water Temperature (deg C)", 
-                                                      "Nitrate (ug/L)", 
-                                                      "Chlorophyll a (mg/m3)", 
-                                                      "Chloride (mg/L)")))  |> 
-      # summarising data 
-      dplyr::summarise(value = case_when(n() == 1 ~ value[1], # needed with duplicate values 
-                                         n() == 2 ~ mean(value, na.rm = TRUE),
-                                         n() >= 3 ~ median(value, na.rm = TRUE)),
-                       .by = c(Park,
-                               MonitoringLocationName_Long,
-                               month,
-                               month_name,
-                               year,
-                               AxisName,
-                               lat,
-                               lon,
-                               value_unit,
-                               period))
+  if(scope == "filtered"){
     
-    data_current <- data |> 
-      dplyr::filter(period == "Current")
-    
-    data_historic <- data |> 
-      dplyr::filter(period == "Historic",
-                    !is.na(value)) |> 
-      dplyr::summarise(hist_min = min(value, na.rm = TRUE),
-                       hist_max = max(value, na.rm = TRUE),
-                       hist_2 = quantile(value, probs = 0.025, na.rm = TRUE),
-                       hist_95 = quantile(value, probs = 0.95, na.rm = TRUE),
-                       hist_25 = quantile(value, probs = 0.25, na.rm = TRUE),
-                       hist_75 = quantile(value, probs = 0.75, na.rm = TRUE),
-                       hist_med = median(value, na.rm = TRUE),
-                       .by = c(MonitoringLocationName_Long,
-                               AxisName,
-                               month,
-                               month_name))
-    
-    return(list(current = data_current,
-                historic = data_historic))
+    # setting params based on type and releveling 
+    if(identical(type, "river")){
+      # param <- river_param
+      param_order <- c("Discharge (ft^3/s)",
+                       "Total suspended solids (mg/L)",
+                       "Phosphorus (ug/L)", 
+                       "Calcium (mg/L)", 
+                       "Water Temperature (deg C)", 
+                       "Nitrate (ug/L)", 
+                       "Chlorophyll a (mg/m3)", 
+                       "Chloride (mg/L)")
+    } else { # type == lake 
+      # param <- lake_param
+      param_order <- c("Water Temperature (deg C)", 
+                       "Phosphorus (ug/L)", 
+                       "Dissolved Organic Carbon (mg/L)", 
+                       "Calcium (mg/L)",
+                       "Dissolved Oxygen (mg/L)", 
+                       "Chlorophyll a (mg/m3)",
+                       "Secchi Disk Depth (m)", 
+                       "Water level (m)")
+    }
       
-  } else{
+      data <- df |> 
+        # filtering based on params (river or lake) and removing NA values
+        dplyr::filter(AxisName %in% selected_params,
+                      !is.na(value))  |> 
+        # releving params
+        dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                      param_order))  |> 
+        # summarising data 
+        dplyr::summarise(value = case_when(n() == 1 ~ value[1], # needed with duplicate values 
+                                           n() == 2 ~ mean(value, na.rm = TRUE),
+                                           n() >= 3 ~ median(value, na.rm = TRUE)),
+                         .by = c(Park,
+                                 MonitoringLocationName_Long,
+                                 month,
+                                 month_name,
+                                 year,
+                                 AxisName,
+                                 lat,
+                                 lon,
+                                 value_unit,
+                                 period))
+      
+      data_current <- data |> 
+        dplyr::filter(period == "Current")
+      
+      data_historic <- data |> 
+        dplyr::filter(period == "Historic",
+                      !is.na(value)) |> 
+        dplyr::summarise(hist_min = min(value, na.rm = TRUE),
+                         hist_max = max(value, na.rm = TRUE),
+                         hist_2 = quantile(value, probs = 0.025, na.rm = TRUE),
+                         hist_95 = quantile(value, probs = 0.95, na.rm = TRUE),
+                         hist_25 = quantile(value, probs = 0.25, na.rm = TRUE),
+                         hist_75 = quantile(value, probs = 0.75, na.rm = TRUE),
+                         hist_med = median(value, na.rm = TRUE),
+                         .by = c(MonitoringLocationName_Long,
+                                 AxisName,
+                                 month,
+                                 month_name))
+      
+      return(list(current = data_current,
+                  historic = data_historic))
+      
+  } else { # scope == full 
+    
     data <- df |> 
-      dplyr::filter(AxisName %in% lake_param,
-                    !is.na(value)) |> 
-      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Water Temperature (deg C)", 
-                                                      "Phosphorus (ug/L)", 
-                                                      "Dissolved Organic Carbon (mg/L)", 
-                                                      "Calcium (mg/L)",
-                                                      "Dissolved Oxygen (mg/L)", 
-                                                      "Chlorophyll a (mg/m3)",
-                                                      "Secchi Disk Depth (m)", 
-                                                      "Water level (m)")))  |> 
+      # removing NA values
+      dplyr::filter(!is.na(value))  |> 
       # summarising data 
       dplyr::summarise(value = case_when(n() == 1 ~ value[1], # needed with duplicate values 
                                          n() == 2 ~ mean(value, na.rm = TRUE),
@@ -356,53 +405,77 @@ prep_timeseries <- function(df, park_code, type){
 }
 
 ### table data 
-prep_table <- function(df, park_code, type){
-  # setting type 
-  type <- type[[park_code]]
+prep_table <- function(df, scope = c("filtered", "full")){
+  # preps data for table
+  # ARGS:
+  # df: park filtered data
+  # park_code: park code of data
+  # type: type of park (river or lake)
+  # scope: scope for park or network annual report (filtered or full)
+  # RETURNS: A dataset for report table with either a limited or full list of 
+  # parameters to plot.
+  
+  # selecting scope
+  scope <- match.arg(scope)
   
   # checking periods 
   period_levels <- c("Historic", "Current")
   
-  # filtering based on type
-  if(identical(type, "river")){
-    suppressWarnings({
-      df |> 
-      dplyr::filter(AxisName %in% river_param)|> 
-      dplyr::filter(!is.na(value)) |> 
-      tidyr::complete(AxisName = c("Discharge (ft^3/s)",
-                                   "Water Temperature (deg C)",
-                                   "Phosphorus (ug/L)",
-                                   "Chlorophyll a (mg/m3)",
-                                   "Total suspended solids (mg/L)",
-                                   "Nitrate (ug/L)", 
-                                   "Calcium (mg/L)", 
-                                   "Chloride (mg/L)"),
-                      period = period_levels) |> 
-      dplyr::summarise(med = ifelse(all(is.na(value)), NA_real_, 
-                                    median(value, na.rm = TRUE)),
-                       stan_dev = ifelse(sum(!is.na(value)) <= 1, NA_real_,
-                                         sd(value, na.rm = TRUE)),
-                       min_val = ifelse(all(is.na(value)), NA_real_, 
-                                        min(value, na.rm = TRUE)),
-                       max_val = ifelse(all(is.na(value)), NA_real_, 
-                                        max(value, na.rm = TRUE)),
-                       .by = c("AxisName",
-                               "period")) |> 
-      tidyr::pivot_wider(names_from = period,
-                         values_from = c(med, 
-                                         stan_dev,
-                                         min_val,
-                                         max_val)) |> 
-      dplyr::mutate(dplyr::across(where(is.numeric), \(x) round(x, 1))) |> 
-      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Discharge (ft^3/s)",
-                                                      "Water Temperature (deg C)",
-                                                      "Phosphorus (ug/L)",
-                                                      "Chlorophyll a (mg/m3)",
-                                                      "Total suspended solids (mg/L)",
-                                                      "Nitrate (ug/L)", 
-                                                      "Calcium (mg/L)", 
-                                                      "Chloride (mg/L)"))) |> 
+  if(scope == "filtered"){
+    
+    # setting params based on type and releveling 
+    if(identical(type, "river")){
+      # param <- river_param
+      param_order <- c("Discharge (ft^3/s)",
+                       "Water Temperature (deg C)",
+                       "Phosphorus (ug/L)",
+                       "Chlorophyll a (mg/m3)",
+                       "Total suspended solids (mg/L)",
+                       "Nitrate (ug/L)", 
+                       "Calcium (mg/L)", 
+                       "Chloride (mg/L)")
+    } else { # type == lake 
+      # param <- lake_param
+      param_order <- c("Water Temperature (deg C)", 
+                       "Dissolved Oxygen (mg/L)",
+                       "Phosphorus (ug/L)", 
+                       "Chlorophyll a (mg/m3)", 
+                       "Dissolved Organic Carbon (mg/L)", 
+                       "Secchi Disk Depth (m)",
+                       "Calcium (mg/L)",
+                       "Water level (m)")
+    }
+  
+      suppressWarnings({
+        df |> 
+        # filtering params 
+        dplyr::filter(AxisName %in% selected_params) |> 
+        # making sure each parameter has a row for each period
+        tidyr::complete(AxisName = selected_params,
+                        period = period_levels) |> 
+        # summarising data, adding NA if no data exists
+        dplyr::summarise(med = ifelse(all(is.na(value)), NA_real_, 
+                                      median(value, na.rm = TRUE)),
+                         stan_dev = ifelse(sum(!is.na(value)) <= 1, NA_real_,
+                                           sd(value, na.rm = TRUE)),
+                         min_val = ifelse(all(is.na(value)), NA_real_, 
+                                          min(value, na.rm = TRUE)),
+                         max_val = ifelse(all(is.na(value)), NA_real_, 
+                                          max(value, na.rm = TRUE)),
+                         .by = c("AxisName",
+                                 "period")) |> 
+        # pivoting wider for table formatting
+        tidyr::pivot_wider(names_from = period,
+                           values_from = c(med, 
+                                           stan_dev,
+                                           min_val,
+                                           max_val)) |> 
+        # rounding to 1 decimal place
+        dplyr::mutate(dplyr::across(where(is.numeric), \(x) round(x, 1))) |> 
+        # releveling parameters
+        dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                      param_order)) |> 
+        # selecting needed column names
         dplyr::select(AxisName,
                       min_val_Historic, 
                       med_Historic, 
@@ -411,48 +484,43 @@ prep_table <- function(df, park_code, type){
                       min_val_Current,  
                       med_Current,  
                       max_val_Current,  
-                      stan_dev_Current) |> 
-      dplyr::arrange(AxisName)
-    })
-  } else{
+                      stan_dev_Current) #|> 
+        # arranging by AxisName
+        # dplyr::arrange(AxisName)
+      })
+  } else { # scope == full
+    
+    # getting params 
+    param <- unique(df$AxisName)
+    
     suppressWarnings({
       df |> 
-      dplyr::filter(AxisName %in% lake_param)|> 
-      dplyr::filter(!is.na(value)) |> 
-      tidyr::complete(AxisName = c("Water Temperature (deg C)", 
-                                   "Dissolved Oxygen (mg/L)",
-                                   "Phosphorus (ug/L)", 
-                                   "Chlorophyll a (mg/m3)", 
-                                   "Dissolved Organic Carbon (mg/L)", 
-                                   "Secchi Disk Depth (m)",
-                                   "Calcium (mg/L)",
-                                   "Water level (m)"),
-                      period = period_levels)|> 
-      dplyr::summarise(med = ifelse(all(is.na(value)), NA_real_, 
-                                    median(value, na.rm = TRUE)),
-                       stan_dev = ifelse(sum(!is.na(value)) <= 1, NA_real_,
-                                         sd(value, na.rm = TRUE)),
-                       min_val = ifelse(all(is.na(value)), NA_real_, 
-                                        min(value, na.rm = TRUE)),
-                       max_val = ifelse(all(is.na(value)), NA_real_, 
-                                        max(value, na.rm = TRUE)),
-                       .by = c("AxisName",
-                               "period")) |> 
-      tidyr::pivot_wider(names_from = period,
-                         values_from = c(med, 
-                                         stan_dev,
-                                         min_val,
-                                         max_val)) |> 
-      dplyr::mutate(across(where(is.numeric), \(x) round(x, 1))) |> 
-      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                    c("Water Temperature (deg C)", 
-                                                      "Dissolved Oxygen (mg/L)",
-                                                      "Phosphorus (ug/L)", 
-                                                      "Chlorophyll a (mg/m3)", 
-                                                      "Dissolved Organic Carbon (mg/L)", 
-                                                      "Secchi Disk Depth (m)",
-                                                      "Calcium (mg/L)",
-                                                      "Water level (m)"))) |> 
+        # making sure each parameter has a row for each period
+        tidyr::complete(AxisName = param,
+                        period = period_levels) |> 
+        # summarising data, adding NA if no data exists
+        dplyr::summarise(med = ifelse(all(is.na(value)), NA_real_, 
+                                      median(value, na.rm = TRUE)),
+                         stan_dev = ifelse(sum(!is.na(value)) <= 1, NA_real_,
+                                           sd(value, na.rm = TRUE)),
+                         min_val = ifelse(all(is.na(value)), NA_real_, 
+                                          min(value, na.rm = TRUE)),
+                         max_val = ifelse(all(is.na(value)), NA_real_, 
+                                          max(value, na.rm = TRUE)),
+                         .by = c("AxisName",
+                                 "period")) |> 
+        # pivoting wider for table formatting
+        tidyr::pivot_wider(names_from = period,
+                           values_from = c(med, 
+                                           stan_dev,
+                                           min_val,
+                                           max_val)) |> 
+        # rounding to 1 decimal place
+        dplyr::mutate(dplyr::across(where(is.numeric), \(x) round(x, 1))) |> 
+        # releveling parameters
+        # dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+        #                                               param_order)) |> 
+        # selecting needed column names
         dplyr::select(AxisName,
                       min_val_Historic, 
                       med_Historic, 
@@ -461,67 +529,88 @@ prep_table <- function(df, park_code, type){
                       min_val_Current,  
                       med_Current,  
                       max_val_Current,  
-                      stan_dev_Current) |> 
-      dplyr::arrange(AxisName)
+                      stan_dev_Current) #|> 
+      # arranging by AxisName
+      # dplyr::arrange(AxisName)
     })
   }
 }
 
 ### depth profiles 
-prep_profiles <- function(df, park_code, type){
-  # setting type 
-  type <- type[[park_code]]
+prep_profiles <- function(df, type, scope = c("filtered", "full")){
+  # preps data for profile plots
+  # ARGS:
+  # df: park filtered data
+  # park_code: park code of data
+  # type: type of park (river or lake)
+  # scope: scope for park or network annual report (filtered or full)
+  # RETURNS: A dataset for boxplot with either a limited or full list of 
+  # parameters to plot.
   
-  # filtering based on type
-  if(identical(type, "lake")){
-    
-    # current years data
-    current_data <- df |> 
-      # filtering depth data and current year
-      dplyr::filter(AxisName %in% c("Dissolved Oxygen (mg/L)",
-                                    "Water Temperature (deg C)"),
-                    period == "Current") |> 
-      dplyr::filter(!is.na(value)) |> 
-      # adding month names 
-      dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |> 
-      # arranging for plot
-      dplyr::arrange(AxisName,
-              month,
-              depth) |> 
-      dplyr::mutate(month_long = factor(month_long,
-                                        levels = unique(month_long)))
-    
-      # getting unique months 
-      valid_months <- unique(current_data$month)
+  # selecting scope
+  scope <- match.arg(scope)
+  
+  if(scope == "filtered"){
+    # filters depth params 
+    param <- c("Dissolved Oxygen (mg/L)",
+               "Water Temperature (deg C)")
+  } else{ # scope == full
+    # full depth params 
+    param <- c("Dissolved Oxygen (%)",
+               "Dissolved Oxygen (mg/L)",
+               "pH",
+               "Specific Conductance (uS/cm)",
+               "Water Temperature (deg C)")  
+  }
+
+    # filtering based on type
+    if(identical(type, "lake")){
       
-    # all data 
-    all_data <- df |> 
-      # filtering valid months 
-      dplyr::filter(month %in% valid_months,
-                    AxisName %in% c("Dissolved Oxygen (mg/L)",
-                                    "Water Temperature (deg C)")) |> 
-      # round depths
-      dplyr::mutate(depth = round(depth, 0)) |> 
-      dplyr::filter(!is.na(value)) |> 
-      # adding month names
-      dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |>
-      # getting min and max
-      dplyr::summarise(min_value = min(value, na.rm = TRUE),
-                       max_value = max(value, na.rm = TRUE),
-                       .by = c("depth",
-                               "month",
-                               "AxisName",
-                               "month_long")) |> 
-      # arranging for plot 
-      dplyr::arrange(AxisName,
-                     month,
-                     depth) |> 
-      dplyr::mutate(month_long = factor(month_long,
-                                        levels = unique(month_long)))
-    
-    return(list(current = current_data,
-                historic = all_data))
-    
+      # current years data
+      current_data <- df |> 
+        # filtering depth data and current year
+        dplyr::filter(AxisName %in% param,
+                      period == "Current") |> 
+        dplyr::filter(!is.na(value)) |> 
+        # adding month names 
+        dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |> 
+        # arranging for plot
+        dplyr::arrange(AxisName,
+                month,
+                depth) |> 
+        dplyr::mutate(month_long = factor(month_long,
+                                          levels = unique(month_long)))
+      
+        # getting unique months 
+        valid_months <- unique(current_data$month)
+        
+      # all data 
+      all_data <- df |> 
+        # filtering valid months 
+        dplyr::filter(month %in% valid_months,
+                      AxisName %in% param) |> 
+        # round depths
+        dplyr::mutate(depth = round(depth, 0)) |> 
+        dplyr::filter(!is.na(value)) |> 
+        # adding month names
+        dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |>
+        # getting min and max
+        dplyr::summarise(min_value = min(value, na.rm = TRUE),
+                         max_value = max(value, na.rm = TRUE),
+                         .by = c("depth",
+                                 "month",
+                                 "AxisName",
+                                 "month_long")) |> 
+        # arranging for plot 
+        dplyr::arrange(AxisName,
+                       month,
+                       depth) |> 
+        dplyr::mutate(month_long = factor(month_long,
+                                          levels = unique(month_long)))
+      
+      return(list(current = current_data,
+                  historic = all_data))
+      
   } else{
     # river data doesn't have depth data 
     return(NULL)
@@ -531,10 +620,7 @@ prep_profiles <- function(df, park_code, type){
 ## Plot functions ----
 
 ### map 
-plot_map <- function(df, park_code, type){
-  
-  # setting type 
-  type <- type[[park_code]]
+plot_map <- function(df, type){
   
   if(identical(type, "lake")){
   
@@ -626,8 +712,8 @@ plot_timeseries <- function(current, historic){
     labs(x = "Month",
          y = "Value",
          alt = "A timeseries figure showing monthly surface measurements in the upper 2m of the water column for the site and each parameter.") + 
-    scale_x_continuous(breaks = 2:10,
-                       labels = month.abb) +
+    scale_x_continuous(breaks = seq(1, 12, by = 2),
+                       labels = month.abb[seq(1, 12, by = 2)]) +
     facet_wrap(~AxisName,
                scales = "free",
                ncol = 4) +
@@ -732,6 +818,3 @@ plot_depthprofile <- function(current, historic){
     theme_bw() + 
     theme(text = element_text(size = 16))
 }
-
-
-

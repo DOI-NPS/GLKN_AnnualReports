@@ -1,0 +1,177 @@
+---
+title: "Water Quality Monitoring for `r params$park_full`: `r params$current_year` Network Data Report"
+output: 
+  html_document:
+    css: www/styles.css
+
+params:
+  park: "ISRO" # default
+  park_full: "Isle Royale National Park" # default
+  # park: "SACN" # default
+  # park_full: "St. Croix National Scenic Riverway" # default
+  current_year: 2024
+  discharge_date: "2024-12-01"
+  scope: "full"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      message = FALSE, 
+                      warning = FALSE)
+```
+
+```{r source, include=FALSE}
+# source("WaterQuality_AnnualReport_compile.R")
+sys.source("WaterQuality_AnnualReport_compile.R", envir = knitr::knit_global())
+```
+
+```{r data, include=FALSE}
+# loading data
+df <- wqp_data |> 
+  dplyr::filter(Park == params$park)
+
+# selecting park type 
+type <- park_type[params$park]
+
+# getting site names 
+if(type == "lake"){
+  
+  sites <- df |> 
+    dplyr::distinct(MonitoringLocationName_Long) |> 
+    dplyr::arrange(MonitoringLocationName_Long) |> 
+    dplyr::pull() 
+  
+} else{
+  
+  # note: this chunk of code will not work if more river parks are selected. 
+  site_order <- c("CCC Bridge", "Leonards", "Earl", "Namekagon Trail", "Norway Point",
+                  "Highway 70", "Nevers Dam", "Osceola")
+  
+  sites <- df  |> 
+  dplyr::mutate(MonitoringLocationName_Long = factor(MonitoringLocationName_Long,
+                                                     levels = site_order)) |> 
+  dplyr::distinct(MonitoringLocationName_Long) |> 
+  dplyr::arrange(MonitoringLocationName_Long) |> 
+  dplyr::pull()
+}
+
+# selecting params
+if(type == "lake"){
+  selected_params <- lake_param
+} else{
+  selected_params <- river_param
+}
+```
+
+## Overview {.tabset}
+This report contains all parameter collected at sites in `r params$park_full` in `r params$current_year`. (more here?)
+
+<h1>Map of `r params$park`</h1>
+```{r map, results='asis'}
+map_data <- prep_map(df)
+
+plot_map(df = map_data,
+         type = type)
+
+if(type == "river"){
+  cat("<p><strong>Figure 1. </strong>Water quality sampling locations (blue) for", params$park, ". Green markers indicate sites where average daily stream flow is measured by the U.S. Geological Survey (USGS). Click on the dots to see site names. Discharge (flow) at the USGS gauge on the Namekagon River at Leonards, WI (USGS-05331833) is shown in water quality summaries for Leonards, Earl, and Namekagon Trail. Discharge at the USGS gauge on the St. Croix River near Danbury, WI (USGS-05333500) is shown in water quality summaries for CCC Bridge, Norway Point, and Highway 70. Discharge at the USGS gauge on the St. Croix River at St. Croix Falls, WI (USGS-05340500) is shown in water quality summaries for Nevers Dam and Osceola.\n\n")
+  
+} else{
+
+  cat("<p><strong>Figure 1. </strong>Water quality sampling locations (blue) for", params$park,". Click on the dots to see site names.\n\n")
+
+}
+
+  cat("<br><br>")
+```
+
+### Site Summaries {.tabset}
+
+```{r site-tabs, results='asis', fig.width=14, fig.height=20, out.width='100%'}
+for(site in sites){
+  
+  # Create tab for site
+  cat("#### ", site, "\n\n")
+
+  # subsetting site data 
+  site_data <- df |> 
+    dplyr::filter(MonitoringLocationName_Long == site)
+  
+  # Boxplots ----
+  boxplot_data <- prep_boxplot(df = site_data,
+                               scope = params$scope)
+  
+  bp <- plot_boxplot(df = boxplot_data)
+  
+  print(bp)
+  
+  cat("<br><br>")
+  
+  cat("<p><strong>Figure 2. </strong>Boxplots showing ", params$current_year," data (green) compared to all data (blue) from previous years collected at", site, ". The boxplots show the median (center line) and 25th and 75th percentiles (box edges), with whiskers (1.5x Interquartile Range) and outliers (points).\n\n")
+  
+  cat("<br><br>")
+  
+  # Timeseries ----
+  timeseriesdata <- prep_timeseries(df = site_data,
+                                    scope = params$scope)
+  
+  ts <- plot_timeseries(current = timeseriesdata$current,
+                        historic = timeseriesdata$historic)
+  
+  print(ts)
+  
+  cat("<br><br>")
+  
+  if(type == "river"){
+    
+  cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values ( 2006 - ", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month, except for discharge, whichrepresents an average monthly values of daily means. For water temperature, means were calculated and plotted when two values were collected within the upper 2 m of the water column; median was calculated and plotted when three or more measurements were collected.\n\n")
+    
+  } else {
+    
+    cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values (2006-", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month. For water temerature and dissolved oxygen, means were calculated and plotted when two values were collected within the upper 2 m of the water column; medians were calculated and plotted when three or more measurements were collected. Note that calcium is typically a single measurement collected in July.\n\n")
+    
+  }
+  
+  cat("<br><br>")
+  
+  # Summary Table ----
+  table_data <- prep_table(df = site_data,
+                           scope = params$scope)
+  
+  table <- create_table(table_data)
+  
+  if(type == "river"){
+    
+  cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, and standard deviation) for historic (2006-", as.numeric(current_year) - 1, ") and current year (", current_year, ") data.\n\n")
+    
+  } else {
+    
+cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, and standard deviation) for historic (2006-", as.numeric(current_year) - 1, ") and current year (", current_year, ") data. Note that calcuim is typically a single measurement collected in July.\n\n")
+      
+  }
+  
+  print_table(table)
+  
+  cat("<br><br>")
+
+  # Depth Profile
+  profile_data <- prep_profiles(df = site_data,
+                                type = type,
+                                scope = params$scope)
+  
+  # run if lake park, skip if not
+  if(!is.null(profile_data)){
+    
+  depth_profiles <- plot_depthprofile(current = profile_data$current,
+                                      historic = profile_data$historic)
+  
+  print(depth_profiles)
+  
+  cat("<br><br>")
+  
+  cat("<p><strong>Figure 4. </strong>Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ", current_year,". The shaded areas represent the minimum and maximum values recorded at each depth at ", site, " from 2006 - ", as.numeric(params$current_year) - 1, ". \n\n")
+  }
+  
+  cat("\n\n")
+}
+```
