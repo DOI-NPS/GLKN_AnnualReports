@@ -564,7 +564,7 @@ prep_profiles <- function(df, type, scope = c("filtered", "full")){
   }
 
     # filtering based on type
-    if(identical(type, "lake")){
+    if(type == "lake"){
       
       # current years data
       current_data <- df |> 
@@ -777,7 +777,7 @@ print_table <- function(tbl){
 }
 
 ### depth profile
-plot_depthprofile <- function(current, historic){
+plot_depthprofile <- function(current, historic, scope = c("filtered", "full")){
 
   # if river park
   if (is.null(current) || is.null(historic)) {
@@ -785,6 +785,9 @@ plot_depthprofile <- function(current, historic){
   }
   
   # if lake park
+  if (scope == "filtered"){
+  
+  # if scope == filtered
   ggplot() +   
     # historic ribbons
     geom_ribbon(data = historic,
@@ -817,4 +820,39 @@ plot_depthprofile <- function(current, historic){
                                   "#C8AF60")) +
     theme_bw() + 
     theme(text = element_text(size = 16))
+    
+  } else { # scope == full
+    ggplot() +   
+      # historic ribbons
+      geom_ribbon(data = historic,
+                  aes(xmin = min_value,
+                      xmax = max_value,
+                      y = depth),
+                      # fill = AxisName),
+                  size = 10,
+                  # fill = "grey70",
+                  alpha = 0.3) +
+      geom_path(data = current,
+                aes(x = value,
+                    y = depth),
+                    # color = AxisName),
+                linewidth = 1.5) +
+      geom_point(data = current,
+                 aes(x = value,
+                     y = depth),
+                     # color = AxisName),
+                 size = 3) +
+      facet_grid(month_long~AxisName,
+                 scales = "free") +
+      labs(x = "Value",
+           y = "Depth (m)",
+           alt = "Depth profile plots for dissolved oxygen (mg/L) and water temperature in different months for the site. Historic minimum and maximum ranges are plotted as bands.") +
+      # scale_fill_manual(values = c("#0982C8",
+      #                              "#C8AF60")) +
+      # scale_color_manual(values = c("#0982C8",
+      #                               "#C8AF60")) +
+      theme_bw() + 
+      theme(text = element_text(size = 16))
+    
+  }
 }

@@ -163,7 +163,8 @@ cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, 
   if(!is.null(profile_data)){
     
   depth_profiles <- plot_depthprofile(current = profile_data$current,
-                                      historic = profile_data$historic)
+                                      historic = profile_data$historic,
+                                      scope = params$scope)
   
   print(depth_profiles)
   
