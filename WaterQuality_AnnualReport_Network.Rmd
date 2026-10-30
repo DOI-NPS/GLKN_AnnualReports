@@ -64,7 +64,7 @@ if(type == "lake"){
 ```
 
 ## Overview {.tabset}
-This report contains all parameter collected at sites in `r params$park_full` in `r params$current_year`. (more here?)
+This report contains all parameter collected at sites in `r params$park_full` in `r params$current_year`.
 
 <h1>Map of `r params$park`</h1>
 ```{r map, results='asis'}
@@ -124,11 +124,11 @@ for(site in sites){
   
   if(type == "river"){
     
-  cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values ( 2006 - ", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month, except for discharge, whichrepresents an average monthly values of daily means. For water temperature, means were calculated and plotted when two values were collected within the upper 2 m of the water column; median was calculated and plotted when three or more measurements were collected.\n\n")
+  cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values ( 2006 - ", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month, except for discharge, which represents average monthly values of daily means. For data collected by sond, means were calculated and plotted when two values were collected within the upper 2 m of the water column; median was calculated and plotted when three or more measurements were collected.\n\n")
     
   } else {
     
-    cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values (2006-", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month. For water temerature and dissolved oxygen, means were calculated and plotted when two values were collected within the upper 2 m of the water column; medians were calculated and plotted when three or more measurements were collected. Note that calcium is typically a single measurement collected in July.\n\n")
+    cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values (2006-", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month. For data collected by sond, means were calculated and plotted when two values were collected within the upper 2 m of the water column; medians were calculated and plotted when three or more measurements were collected.\n\n")
     
   }
   
@@ -139,16 +139,9 @@ for(site in sites){
                            scope = params$scope)
   
   table <- create_table(table_data)
-  
-  if(type == "river"){
     
   cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, and standard deviation) for historic (2006-", as.numeric(current_year) - 1, ") and current year (", current_year, ") data.\n\n")
-    
-  } else {
-    
-cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, and standard deviation) for historic (2006-", as.numeric(current_year) - 1, ") and current year (", current_year, ") data. Note that calcuim is typically a single measurement collected in July.\n\n")
-      
-  }
+
   
   print_table(table)
   
@@ -170,7 +163,7 @@ cat("<p><strong>Table 1. </strong>Summary statistics (minimum, median, maximum, 
   
   cat("<br><br>")
   
-  cat("<p><strong>Figure 4. </strong>Depth profiles plots for dissolved oxygen (blue) and water temperature (brown) for ", current_year,". The shaded areas represent the minimum and maximum values recorded at each depth at ", site, " from 2006 - ", as.numeric(params$current_year) - 1, ". \n\n")
+  cat("<p><strong>Figure 4. </strong>Depth profiles plots of data collected by sond for ", current_year,". The shaded areas represent the minimum and maximum values recorded at each depth at ", site, " from 2006 - ", as.numeric(params$current_year) - 1, ". \n\n")
   }
   
   cat("\n\n")

@@ -136,7 +136,7 @@ for(site in sites){
   
   if(type == "river"){
     
-  cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values ( 2006 - ", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month, except for discharge, whichrepresents an average monthly values of daily means. For water temperature, means were calculated and plotted when two values were collected within the upper 2 m of the water column; median was calculated and plotted when three or more measurements were collected.\n\n")
+  cat("<p><strong>Figure 3. </strong>Time series showing monthly surface measurements in the upper 2 m of the water column for ", site, ". The blue bands represent the total range (minimum and maximum) and 95% and 50% ranges of historic values ( 2006 - ", as.numeric(params$current_year) - 1, ") collected for each month. The blue line is the median historic value collected for each month. The black points are the ", params$current_year, " values collected during each month, except for discharge, which represents average monthly values of daily means. For water temperature, means were calculated and plotted when two values were collected within the upper 2 m of the water column; median was calculated and plotted when three or more measurements were collected.\n\n")
     
   } else {
     
