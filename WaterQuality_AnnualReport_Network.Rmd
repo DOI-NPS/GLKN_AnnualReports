@@ -5,12 +5,12 @@ output:
     css: www/styles.css
 
 params:
-  park: "ISRO" # default
-  park_full: "Isle Royale National Park" # default
-  # park: "SACN" # default
-  # park_full: "St. Croix National Scenic Riverway" # default
-  current_year: 2024
-  discharge_date: "2024-12-01"
+  # park: "ISRO" # default
+  # park_full: "Isle Royale National Park" # default
+  park: "SACN" # default
+  park_full: "St. Croix National Scenic Riverway" # default
+  current_year: 2025
+  discharge_date: "2025-12-01"
   scope: "full"
 ---
 
@@ -99,7 +99,8 @@ for(site in sites){
   
   # Boxplots ----
   boxplot_data <- prep_boxplot(df = site_data,
-                               scope = params$scope)
+                               scope = params$scope,
+                               type = type)
   
   bp <- plot_boxplot(df = boxplot_data)
   
@@ -113,7 +114,8 @@ for(site in sites){
   
   # Timeseries ----
   timeseriesdata <- prep_timeseries(df = site_data,
-                                    scope = params$scope)
+                                    scope = params$scope,
+                                    type = type)
   
   ts <- plot_timeseries(current = timeseriesdata$current,
                         historic = timeseriesdata$historic)
@@ -136,7 +138,8 @@ for(site in sites){
   
   # Summary Table ----
   table_data <- prep_table(df = site_data,
-                           scope = params$scope)
+                           scope = params$scope,
+                           type = type)
   
   table <- create_table(table_data)
     
@@ -149,8 +152,8 @@ for(site in sites){
 
   # Depth Profile
   profile_data <- prep_profiles(df = site_data,
-                                type = type,
-                                scope = params$scope)
+                                scope = params$scope,
+                                type = type)
   
   # run if lake park, skip if not
   if(!is.null(profile_data)){
