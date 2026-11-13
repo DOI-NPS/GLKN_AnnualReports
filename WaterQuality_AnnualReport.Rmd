@@ -71,7 +71,7 @@ With assistance from `r params$park_full` (`r params$park`) staff, in `r params$
 `r paste("-", selected_params, collapse = "\n")`
 
 A complete list of parameters monitored at `r params$park` is shown in the Methods tab, and current status, trends, and thresholds for all those parameters are available in GLKN's water quality visualizer, found here: 
-[GLKN Water Quality Visualizer](kinziebailey.shinyapps.io/GLKNViz-Dev/)
+[GLKN Water Quality Visualizer](https://kinziebailey-glknviz.share.connect.posit.cloud/)
 
 <h1>Map of `r params$park`</h1>
 ```{r map, results='asis'}
