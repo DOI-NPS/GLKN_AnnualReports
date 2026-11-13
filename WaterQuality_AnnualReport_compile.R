@@ -4,9 +4,7 @@
 # data. This file also builds the functions that filter and plot each section of
 # the annual report. In most functions, a dataset, park code, park type, and 
 # scope need to be assigned. The dataset, park code, and type will all auto 
-# populate when running the WaterQuality_AnnualReport_render.R. To switch between 
-# annual reports for parks and annual reports for the Network, change which scope 
-# is commented out at the top of the WaterQuality_AnnualReport.Rmd.
+# populate when running the WaterQuality_AnnualReport_render.R.
 # 
 # If the Rmd does not knit, this is where the error will come from.
 
@@ -164,6 +162,7 @@ wqp_data4 <- bind_rows(wqp_data3,
                        discharge)
 
 wqp_data <- wqp_data4 |> 
+  # filling in data for streamflow sites
   tidyr::fill(MonitoringLocationName,
               MonitoringLocationName_Long,
               Park,
@@ -182,6 +181,7 @@ wqp_data <- wqp_data4 |>
                 site_type = case_when(CharacteristicName == "Discharge" ~ "Stream Guage",
                                       TRUE ~ "Monitoring"))
 
+# Setting Parameters ----
 ## park types 
 park_type <- c("ISRO" = "lake",
                "PIRO" = "lake",
@@ -189,7 +189,7 @@ park_type <- c("ISRO" = "lake",
                "SLBE" = "lake",
                "VOYA" = "lake")
 
-# Parameters based on park type:
+## Parameters based on park type (for park report):
 river_param <- c("Discharge (ft^3/s)", "Phosphorus (ug/L)", "Total suspended solids (mg/L)",
                  "Calcium (mg/L)", "Water Temperature (deg C)", 
                  "Chlorophyll a (mg/m3)", "Nitrate (ug/L)", "Chloride (mg/L)")
@@ -198,6 +198,17 @@ lake_param <- c("Water Temperature (deg C)", "Dissolved Oxygen (mg/L)",
                 "Phosphorus (ug/L)", "Chlorophyll a (mg/m3)",
                 "Dissolved Organic Carbon (mg/L)", "Secchi Disk Depth (m)",
                 "Calcium (mg/L)", "Water level (m)")
+
+## Parameter order for network report
+network_param <- c("Water Temperature (deg C)", "Dissolved Oxygen (mg/L)",
+                   "Dissolved Oxygen (%)", "pH", "Specific Conductance (uS/cm)",
+                   "Secchi Disk Depth (m)", "Total suspended solids (mg/L)",
+                   "Chlorophyll a (mg/m3)", "Phosphorus (ug/L)", "Nitrogen (ug/L)", 
+                   "Nitrate (ug/L)", "Chloride (mg/L)", 
+                   "Dissolved Organic Carbon (mg/L)", "Total Alkalinity (mg/L)", 
+                   "Sulfate (mg/L)", "Sodium (mg/L)", "Potassium (mg/L)", 
+                   "Magnesium (mg/L)", "Calcium (mg/L", "Silicate (mg/L)",
+                   "Ammonium (ug/L)", "Water level (m)", "Bottom Depth (m)")
 
 # Date labels 
 date_labels <- c(paste0("2006 - ", as.numeric(current_year) - 1),
@@ -227,12 +238,10 @@ prep_map <- function(df){
 }
 
 ### boxplot data 
-prep_boxplot <- function(df, scope = c("filtered", "full")){
+prep_boxplot <- function(df, scope = c("filtered", "full"), type){
   # preps data for boxplots
   # ARGS:
     # df: park filtered data
-    # park_code: park code of data
-    # type: type of park (river or lake)
     # scope: scope for park or network annual report (filtered or full)
   # RETURNS: A dataset for boxplot with either a limited or full list of 
   # parameters to plot.
@@ -243,7 +252,7 @@ prep_boxplot <- function(df, scope = c("filtered", "full")){
   if(scope == "filtered"){
     
     # setting params based on type and releveling 
-    if(identical(type, "river")){
+    if(type == "river"){
       # param <- river_param
       param_order <- c("Discharge (ft^3/s)",
                        "Total suspended solids (mg/L)",
@@ -264,28 +273,31 @@ prep_boxplot <- function(df, scope = c("filtered", "full")){
                        "Secchi Disk Depth (m)",
                        "Water level (m)")
     }
-      df |> 
-        # filtering river parameters and removing NA values
-        dplyr::filter(AxisName %in% selected_params,
-                      !is.na(value))  |> 
-        # releveling parameters
-        dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-                                                      param_order))
+    
+    # getting data
+    df |> 
+      # filtering river parameters and removing NA values
+      dplyr::filter(AxisName %in% selected_params,
+                    !is.na(value)) |> 
+      # releveling parameters
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    param_order))
       
   } else { # scope == "full"
     df |> 
       # removing NA values
-      dplyr::filter(!is.na(value))
+      dplyr::filter(!is.na(value)) |> 
+      # releveling parameters
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    network_param))
   }
 }
 
 ## timeseries data 
-prep_timeseries <- function(df, scope = c("filtered", "full")){
+prep_timeseries <- function(df, scope = c("filtered", "full"), type){
   # preps data for timeseries
   # ARGS:
   # df: park filtered data
-  # park_code: park code of data
-  # type: type of park (river or lake)
   # scope: scope for park or network annual report (filtered or full)
   # RETURNS: A dataset for timeseries plots with either a limited or full list of 
   # parameters to plot.
@@ -296,7 +308,7 @@ prep_timeseries <- function(df, scope = c("filtered", "full")){
   if(scope == "filtered"){
     
     # setting params based on type and releveling 
-    if(identical(type, "river")){
+    if(type == "river"){
       # param <- river_param
       param_order <- c("Discharge (ft^3/s)",
                        "Total suspended solids (mg/L)",
@@ -317,7 +329,8 @@ prep_timeseries <- function(df, scope = c("filtered", "full")){
                        "Secchi Disk Depth (m)", 
                        "Water level (m)")
     }
-      
+     
+    # getting data 
       data <- df |> 
         # filtering based on params (river or lake) and removing NA values
         dplyr::filter(AxisName %in% selected_params,
@@ -379,7 +392,10 @@ prep_timeseries <- function(df, scope = c("filtered", "full")){
                                lat,
                                lon,
                                value_unit,
-                               period))
+                               period)) |> 
+      # releveling parameters
+      dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                    network_param))
     
     data_current <- data |> 
       dplyr::filter(period == "Current")
@@ -405,12 +421,10 @@ prep_timeseries <- function(df, scope = c("filtered", "full")){
 }
 
 ### table data 
-prep_table <- function(df, scope = c("filtered", "full")){
+prep_table <- function(df, scope = c("filtered", "full"), type){
   # preps data for table
   # ARGS:
   # df: park filtered data
-  # park_code: park code of data
-  # type: type of park (river or lake)
   # scope: scope for park or network annual report (filtered or full)
   # RETURNS: A dataset for report table with either a limited or full list of 
   # parameters to plot.
@@ -424,7 +438,7 @@ prep_table <- function(df, scope = c("filtered", "full")){
   if(scope == "filtered"){
     
     # setting params based on type and releveling 
-    if(identical(type, "river")){
+    if(type == "river"){
       # param <- river_param
       param_order <- c("Discharge (ft^3/s)",
                        "Water Temperature (deg C)",
@@ -446,6 +460,7 @@ prep_table <- function(df, scope = c("filtered", "full")){
                        "Water level (m)")
     }
   
+    # getting data 
       suppressWarnings({
         df |> 
         # filtering params 
@@ -484,9 +499,9 @@ prep_table <- function(df, scope = c("filtered", "full")){
                       min_val_Current,  
                       med_Current,  
                       max_val_Current,  
-                      stan_dev_Current) #|> 
+                      stan_dev_Current) |> 
         # arranging by AxisName
-        # dplyr::arrange(AxisName)
+        dplyr::arrange(AxisName)
       })
   } else { # scope == full
     
@@ -518,8 +533,8 @@ prep_table <- function(df, scope = c("filtered", "full")){
         # rounding to 1 decimal place
         dplyr::mutate(dplyr::across(where(is.numeric), \(x) round(x, 1))) |> 
         # releveling parameters
-        # dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
-        #                                               param_order)) |> 
+        dplyr::mutate(AxisName = forcats::fct_relevel(AxisName,
+                                                      network_param)) |> 
         # selecting needed column names
         dplyr::select(AxisName,
                       min_val_Historic, 
@@ -529,20 +544,18 @@ prep_table <- function(df, scope = c("filtered", "full")){
                       min_val_Current,  
                       med_Current,  
                       max_val_Current,  
-                      stan_dev_Current) #|> 
-      # arranging by AxisName
-      # dplyr::arrange(AxisName)
+                      stan_dev_Current) |> 
+        # arranging by AxisName
+        dplyr::arrange(AxisName)
     })
   }
 }
 
 ### depth profiles 
-prep_profiles <- function(df, type, scope = c("filtered", "full")){
+prep_profiles <- function(df, scope = c("filtered", "full"), type){
   # preps data for profile plots
   # ARGS:
   # df: park filtered data
-  # park_code: park code of data
-  # type: type of park (river or lake)
   # scope: scope for park or network annual report (filtered or full)
   # RETURNS: A dataset for boxplot with either a limited or full list of 
   # parameters to plot.
@@ -556,11 +569,11 @@ prep_profiles <- function(df, type, scope = c("filtered", "full")){
                "Water Temperature (deg C)")
   } else{ # scope == full
     # full depth params 
-    param <- c("Dissolved Oxygen (%)",
+    param <- c("Water Temperature (deg C)",
                "Dissolved Oxygen (mg/L)",
+               "Dissolved Oxygen (%)",
                "pH",
-               "Specific Conductance (uS/cm)",
-               "Water Temperature (deg C)")  
+               "Specific Conductance (uS/cm)")  
   }
 
     # filtering based on type
@@ -573,11 +586,14 @@ prep_profiles <- function(df, type, scope = c("filtered", "full")){
                       period == "Current") |> 
         dplyr::filter(!is.na(value)) |> 
         # adding month names 
-        dplyr::mutate(month_long = format(as.Date(end_date), "%B")) |> 
+        dplyr::mutate(month_long = format(as.Date(end_date), "%B"), 
+                      # releveling parameters
+                      AxisName = forcats::fct_relevel(AxisName,
+                                                      param)) |>  
         # arranging for plot
         dplyr::arrange(AxisName,
-                month,
-                depth) |> 
+                       month,
+                       depth) |> 
         dplyr::mutate(month_long = factor(month_long,
                                           levels = unique(month_long)))
       
@@ -621,8 +637,12 @@ prep_profiles <- function(df, type, scope = c("filtered", "full")){
 
 ### map 
 plot_map <- function(df, type){
+  # plots map data
+  # ARGS:
+  # df: prep_map data output
+  # RETURNS: Leaflet map of selected sites.
   
-  if(identical(type, "lake")){
+  if(type == "lake"){
   
   leaflet(df) |> 
     addProviderTiles("Esri.WorldStreetMap") |> 
@@ -631,7 +651,8 @@ plot_map <- function(df, type){
                      radius = 5,
                      color = "blue",
                      popup = ~MonitoringLocationName_Long)
-  } else{
+    
+  } else{ # type == "river
       
     # color palette
     col_pal <- colorFactor(palette = c("blue",
@@ -651,6 +672,11 @@ plot_map <- function(df, type){
 
 ### box plot 
 plot_boxplot <- function(df){
+  # plots boxplot data
+  # ARGS:
+  # df: prep_boxplot data output
+  # RETURNS: Boxplots of data.
+  
   ggplot() + 
     geom_boxplot(data = df,
                  aes(x = period,
@@ -673,7 +699,12 @@ plot_boxplot <- function(df){
 
 ### timeseries 
 plot_timeseries <- function(current, historic){
-
+  # plots timeseries data
+  # ARGS:
+  # current: prep_timeseries$current data output
+  # historic: prep_timeseries$historic data output
+  # RETURNS: Timeseries of data.
+  
   ggplot() + 
     geom_ribbon(data = historic,
                 aes(ymin = hist_min,
@@ -723,6 +754,10 @@ plot_timeseries <- function(current, historic){
 
 ### table 
 create_table <- function(df){
+  # creates table
+  # ARGS:
+  # df: prep_table output data 
+  # RETURNS: Table of data.
   
   # Ensure spanner columns exist (fill missing ones with NA)
   needed <- c("min_val_Historic", "med_Historic", "max_val_Historic",
@@ -772,13 +807,23 @@ create_table <- function(df){
 
 ### print table 
 print_table <- function(tbl){
+  # prints timeseries data
+  # ARGS:
+  # tbl: table from create_table
+  # RETURNS: Printed version of the table.
+  
   cat(gt::as_raw_html(tbl))
   invisible(NULL)
 }
 
 ### depth profile
 plot_depthprofile <- function(current, historic, scope = c("filtered", "full")){
-
+  # plots depth profile data
+  # ARGS:
+  # current: prep_profiles$current data output
+  # historic: prep_prfiles$historic data output
+  # RETURNS: Depth profiles of data.
+  
   # if river park
   if (is.null(current) || is.null(historic)) {
     return(invisible(NULL))   # do nothing
@@ -822,6 +867,7 @@ plot_depthprofile <- function(current, historic, scope = c("filtered", "full")){
     theme(text = element_text(size = 16))
     
   } else { # scope == full
+    
     ggplot() +   
       # historic ribbons
       geom_ribbon(data = historic,
@@ -847,10 +893,6 @@ plot_depthprofile <- function(current, historic, scope = c("filtered", "full")){
       labs(x = "Value",
            y = "Depth (m)",
            alt = "Depth profile plots for dissolved oxygen (mg/L) and water temperature in different months for the site. Historic minimum and maximum ranges are plotted as bands.") +
-      # scale_fill_manual(values = c("#0982C8",
-      #                              "#C8AF60")) +
-      # scale_color_manual(values = c("#0982C8",
-      #                               "#C8AF60")) +
       theme_bw() + 
       theme(text = element_text(size = 16))
     
