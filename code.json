@@ -10,14 +10,14 @@
       "licenses": [
         {
           "name": "Public Domain, CC0-1.0",
-          "URL": "https://github.com/kbaileynps/NGPN_AnnualReports"
+          "URL": "https://github.com/DOI-NPS/GLKN_AnnualReports"
         }
       ]
     },
-    "homepageURL": "https://github.com/kbaileynps/GLKN_AnnualReports",
-    "downloadURL": "https://github.com/kbaileynps/GLKN_AnnualReports",
-    "disclaimerURL": "https://github.com/kbaileynps/GLKN_AnnualReports/blob/main/LICENSE",
-    "repositoryURL": "https://github.com/kbaileynps/GLKN_AnnualReports",
+    "homepageURL": "https://github.com/DOI-NPS/GLKN_AnnualReports",
+    "downloadURL": "https://github.com/DOI-NPS/GLKN_AnnualReports",
+    "disclaimerURL": "https://github.com/DOI-NPS/GLKN_AnnualReports/blob/main/LICENSE",
+    "repositoryURL": "https://github.com/DOI-NPS/GLKN_AnnualReports",
     "vcs": "git",
     "laborHours": 1,
     "tags": [
@@ -35,7 +35,7 @@
       "email": "kinzie_bailey@partner.nps.gov"
     },
     "date": {
-      "metadataLastUpdated": "2026-09-16"
+      "metadataLastUpdated": "2026-11-13"
     }
   }
 ]
